@@ -49,11 +49,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GameScreen(modifier: Modifier = Modifier) {
-    // États du jeu temporaires pour le prototype
     var totalLinesOfCode by remember { mutableStateOf(0.0) }
     var keyboardLevel by remember { mutableStateOf(0) }
 
-    // Formules de calcul
     val linesPerClick = 1.0 + keyboardLevel
     val upgradeCost = 15.0 * 1.15.pow(keyboardLevel)
 
@@ -64,36 +62,34 @@ fun GameScreen(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Affichage du score
         Text(
             text = "DevTycoon Studio",
-            style = MaterialTheme.typography.headLineMedium,
+            style = MaterialTheme.typography.headlineMedium, // FIX: l minuscule
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "${totalLinesOfCode.toInt()} Lignes de code",
+            text = "${totalLinesOfCode.toInt()} lignes de code",
             fontSize = 32.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.primary
         )
 
         Text(
-            text = "+$linesPerClick Ligne(s) par clic",
+            text = "+$linesPerClick ligne(s) par clic",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary
         )
 
-        Spacer(modifier = Modifier.height(48.sp))
+        Spacer(modifier = Modifier.height(48.dp))
 
-        // Bouton Principal de Clic
         Button(
             onClick = { totalLinesOfCode += linesPerClick },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp)
+                .height(120.dp) // FIX: import natif .dp configuré
         ) {
             Text(
                 text = "ÉCRIRE DU CODE",
@@ -104,7 +100,6 @@ fun GameScreen(modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Section Boutique / Upgrage
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -128,7 +123,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyLarge
                 )
 
-                Text (
+                Text(
                     text = "Coût : ${upgradeCost.toInt()} lignes",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
@@ -146,7 +141,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
                     enabled = totalLinesOfCode >= upgradeCost,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "Acheter (+1 par clic")
+                    Text(text = "Acheter (+1 par clic)")
                 }
             }
         }
@@ -156,7 +151,7 @@ fun GameScreen(modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GameScreenPreview() {
-    DevTycoonTheme{
+    DevTycoonTheme {
         GameScreen()
     }
 }
