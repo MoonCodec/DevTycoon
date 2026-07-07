@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -18,20 +19,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.klem.devtycoon.ui.theme.DevTycoonTheme
-import kotlin.math.pow
 
 class MainActivity : ComponentActivity() {
+
+    // Initialisation propre du ViewModel selon les standards Android
+    private val gameViewModel: GameViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -39,6 +38,7 @@ class MainActivity : ComponentActivity() {
             DevTycoonTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     GameScreen(
+                        viewModel = gameViewModel,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -48,13 +48,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GameScreen(modifier: Modifier = Modifier) {
-    var totalLinesOfCode by remember { mutableStateOf(0.0) }
-    var keyboardLevel by remember { mutableStateOf(0) }
-
-    val linesPerClick = 1.0 + keyboardLevel
-    val upgradeCost = 15.0 * 1.15.pow(keyboardLevel)
-
+fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -64,94 +58,85 @@ fun GameScreen(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "DevTycoon Studio",
-            style = MaterialTheme.typography.headlineMedium, // FIX: l minuscule
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Affichage du score basé sur le ViewModel
         Text(
-            text = "${totalLinesOfCode.toInt()} lignes de code",
+            text = "${viewModel.totalLinesOfCode.toInt()} lignes",
             fontSize = 32.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.primary
         )
 
         Text(
-            text = "+$linesPerClick ligne(s) par clic",
+            text = "+${viewModel.linesPerClick.toInt()} / clic  |  +${viewModel.linesPerSecond.toInt()} / sec",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
+        // Bouton de Clic principal
         Button(
-            onClick = { totalLinesOfCode += linesPerClick },
+            onClick = { viewModel.codeClicked() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp) // FIX: import natif .dp configuré
+                .height(100.dp)
         ) {
-            Text(
-                text = "ÉCRIRE DU CODE",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "ÉCRIRE DU CODE", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
+        Text(
+            text = "Boutique de Recrutement & Matériel",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.align(Alignment.Start),
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Upgrade 1 : Clavier Mécanique
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Text(
-                    text = "Améliorations disponibles",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "Clavier Mécanique (Niveau ${viewModel.keyboardLevel})", fontWeight = FontWeight.Bold)
+                Text(text = "Coût : ${viewModel.keyboardUpgradeCost.toInt()} lignes", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Clavier Mécanique (Niveau $keyboardLevel)",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-
-                Text(
-                    text = "Coût : ${upgradeCost.toInt()} lignes",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
                 Button(
-                    onClick = {
-                        if (totalLinesOfCode >= upgradeCost) {
-                            totalLinesOfCode -= upgradeCost
-                            keyboardLevel++
-                        }
-                    },
-                    enabled = totalLinesOfCode >= upgradeCost,
+                    onClick = { viewModel.buyKeyboardUpgrade() },
+                    enabled = viewModel.totalLinesOfCode >= viewModel.keyboardUpgradeCost,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = "Acheter (+1 par clic)")
+                    Text("Améliorer (+1 / clic)")
                 }
             }
         }
-    }
-}
 
-@Preview(showBackground = true)
-@Composable
-fun GameScreenPreview() {
-    DevTycoonTheme {
-        GameScreen()
+        // Upgrade 2 : Recruter un dev Junior (Gains passifs !)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "Développeur Junior (Possédés : ${viewModel.juniorDevsCount})", fontWeight = FontWeight.Bold)
+                Text(text = "Coût : ${viewModel.juniorDevCost.toInt()} lignes", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { viewModel.hireJuniorDev() },
+                    enabled = viewModel.totalLinesOfCode >= viewModel.juniorDevCost,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Recruter (+2 / sec)")
+                }
+            }
+        }
     }
 }
