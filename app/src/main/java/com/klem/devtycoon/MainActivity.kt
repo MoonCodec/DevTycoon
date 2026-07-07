@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -128,9 +128,9 @@ fun ClickerScreen(viewModel: GameViewModel) {
             withFrameMillis { frameTime ->
                 nextFrameSignal.value = frameTime
                 if (viewModel.clickParticles.isNotEmpty()) {
-                    val iterator = viewModel.clickParticles.iterator()
+                    val iterator: MutableIterator<ClickParticle> = viewModel.clickParticles.iterator()
                     while (iterator.hasNext()) {
-                        val particle = iterator.next()
+                        val particle: ClickParticle = iterator.next()
                         particle.progress += 0.04f
                         if (particle.progress >= 1f) {
                             iterator.remove()
@@ -210,7 +210,7 @@ fun ClickerScreen(viewModel: GameViewModel) {
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             val _signal = nextFrameSignal.value
-            viewModel.clickParticles.forEach { particle ->
+            viewModel.clickParticles.forEach { particle: ClickParticle ->
                 val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
                 textPaint.alpha = alpha
                 val yOffset = particle.progress * 180f
@@ -294,7 +294,7 @@ fun ShopScreen(viewModel: GameViewModel) {
             MarketItemCard("Clavier Mécanique [Niv. ${viewModel.keyboardLevel}]", viewModel.getCostForUI("KEYBOARD"), viewModel.getQtyForUI("KEYBOARD"), true, "", viewModel.totalLinesOfCode >= viewModel.getCostForUI("KEYBOARD"), { viewModel.buyKeyboard() })
             MarketItemCard("Serveur Dédié [Niv. ${viewModel.serverLevel}]", viewModel.getCostForUI("SERVER"), viewModel.getQtyForUI("SERVER"), viewModel.keyboardLevel >= 80, "REQUIS: Clavier Mécanique Niv. 80", viewModel.totalLinesOfCode >= viewModel.getCostForUI("SERVER"), { viewModel.buyServer() })
         } else {
-            // CONDITION DE DÉBLOCAGE SUR LE TOTAL D'ACHATS (Exemple fixé ici à 15 pour test rapide, adaptable à 180)
+            // Seuil de déblocage basé sur les améliorations matérielles (ex: fixé à 15 pour des tests rapides, modifiable à 180)
             val isSoftwareUnlocked = viewModel.totalHardwareUpgrades >= 15
 
             if (isSoftwareUnlocked) {

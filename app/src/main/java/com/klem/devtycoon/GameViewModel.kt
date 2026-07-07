@@ -19,6 +19,14 @@ enum class PurchaseQuantity { X1, X10, X50, X100, MAX }
 enum class ActiveEventType { NONE, BUG, FREELANCE, LEVEL_UP_REWARD }
 enum class QuestType { CLICK_COUNT, PRODUCE_LOC, BUY_UPGRADE }
 
+// Structure d'animation graphique liée au Canvas natif
+data class ClickParticle(
+    val x: Float,
+    val y: Float,
+    val text: String,
+    var progress: Float = 0f
+)
+
 // Structure pour le système de quêtes aléatoires
 data class Quest(
     val id: UUID = UUID.randomUUID(),
@@ -150,7 +158,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 val target = floor(15.0 + (lvl * 10.0) * Random.nextDouble(0.8, 1.3))
                 Quest(
                     title = "Optimisation Compilateur",
-                    description = "Effectuez $target clics manuels pour stabiliser le build.",
+                    description = "Effectuez ${target.toInt()} clics manuels pour stabiliser le build.",
                     type = chosenType,
                     targetGoal = target,
                     rewardLoc = floor((lvl * 50.0) * 1.5),
@@ -193,7 +201,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             quest.currentProgress = quest.targetGoal
             quest.isCompleted = true
         }
-        // Forcer la mise à jour de l'UI en ré-assignant l'état
         currentQuest = quest.copy()
     }
 
