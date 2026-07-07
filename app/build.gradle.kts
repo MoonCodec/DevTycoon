@@ -51,8 +51,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
-    // Système de persistance moderne
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    // APPEL SÉCURISÉ VIA LE CATALOGUE TOML DE GRADLE
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
