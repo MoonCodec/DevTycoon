@@ -4,7 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +29,16 @@ import com.klem.devtycoon.ui.theme.DevTycoonTheme
 
 class MainActivity : ComponentActivity() {
 
-    // Initialisation propre du ViewModel selon les standards Android
-    private val gameViewModel: GameViewModel by viewModels()
+    // Déclaration de l'initialisation du ViewModel via une Factory personnalisée pour passer le Repository
+    private val gameViewModel: GameViewModel by lazy {
+        ViewModelProvider(this, object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val repository = GameRepository(applicationContext)
+                @Suppress("UNCHECKED_CAST")
+                return GameViewModel(repository) as T
+            }
+        })[GameViewModel::class.java]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,7 +73,6 @@ fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Affichage du score basé sur le ViewModel
         Text(
             text = "${viewModel.totalLinesOfCode.toInt()} lignes",
             fontSize = 32.sp,
@@ -80,7 +88,6 @@ fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Bouton de Clic principal
         Button(
             onClick = { viewModel.codeClicked() },
             modifier = Modifier
@@ -101,7 +108,6 @@ fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Upgrade 1 : Clavier Mécanique
         Card(
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -120,7 +126,6 @@ fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        // Upgrade 2 : Recruter un dev Junior (Gains passifs !)
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
