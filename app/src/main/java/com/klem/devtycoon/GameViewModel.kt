@@ -83,7 +83,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     val clickParticles = mutableStateListOf<ClickParticle>()
 
     var activeEvent by mutableStateOf(ActiveEventType.NONE)
-        private set
     var eventMultiplier by mutableStateOf(1.0)
         private set
     var eventMessage by mutableStateOf("")
