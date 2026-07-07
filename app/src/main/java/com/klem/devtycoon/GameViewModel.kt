@@ -11,7 +11,6 @@ import kotlin.math.pow
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
-    // États du jeu (Source de vérité)
     var totalLinesOfCode by mutableStateOf(0.0)
         private set
 
@@ -21,7 +20,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     var juniorDevsCount by mutableStateOf(0)
         private set
 
-    // Formules de calcul (Getters dynamiques)
     val linesPerClick: Double
         get() = 1.0 + keyboardLevel
 
@@ -39,7 +37,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         startGameLoop()
     }
 
-    // Charger les données persistées au démarrage du processus
     private fun loadSavedState() {
         viewModelScope.launch {
             repository.gameStateFlow.collect { savedState ->
@@ -56,14 +53,12 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 delay(1000L)
                 if (linesPerSecond > 0) {
                     totalLinesOfCode += linesPerSecond
-                    // Sauvegarde la progression automatique à chaque tick
                     repository.saveTotalLines(totalLinesOfCode)
                 }
             }
         }
     }
 
-    // Actions utilisateur avec persistance immédiate
     fun codeClicked() {
         totalLinesOfCode += linesPerClick
         viewModelScope.launch {
