@@ -1,6 +1,7 @@
 package com.klem.devtycoon
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -8,14 +9,26 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.UUID
 import kotlin.math.floor
 import kotlin.math.log
 import kotlin.math.pow
+import kotlin.random.Random
 
 enum class PurchaseQuantity { X1, X10, X50, X100, MAX }
+enum class ActiveEventType { NONE, BUG, FREELANCE }
+
+data class ClickParticle(
+    val id: UUID = UUID.randomUUID(),
+    val x: Float,
+    val y: Float,
+    val text: String,
+    val creationTime: Long = System.currentTimeMillis()
+)
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
+    // États persistés
     var totalLinesOfCode by mutableStateOf(0.0)
         private set
     var keyboardLevel by mutableStateOf(0)
@@ -28,24 +41,31 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         private set
     var frameworkLevel by mutableStateOf(0)
         private set
-
-    // Nouvelles variables d'expérience
     var playerLevel by mutableStateOf(1)
         private set
     var playerXp by mutableStateOf(0)
         private set
 
+    // États UI Volatils (Non persistés)
+    val clickParticles = mutableStateListOf<ClickParticle>()
+    var activeEvent by mutableStateOf(ActiveEventType.NONE)
+        private set
+    var eventMultiplier by mutableStateOf(1.0)
+        private set
+    var eventMessage by mutableStateOf("")
+        private set
+
     var selectedQuantity by mutableStateOf(PurchaseQuantity.X1)
 
+    // Getters de production avec altération par événements
     val linesPerClick: Double get() = 1.0 + keyboardLevel
-    val linesPerSecond: Double get() = (juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)
-
-    // Formule simple pour l'XP nécessaire au prochain niveau
+    val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier
     val xpNeededForNextLevel: Int get() = playerLevel * 50
 
     init {
         loadSavedState()
         startGameLoop()
+        startEventOrchestrator()
     }
 
     private fun loadSavedState() {
@@ -72,12 +92,64 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                     totalLinesOfCode += linesPerSecond
                     repository.saveTotalLines(totalLinesOfCode)
                 }
+                // Nettoyage automatique des particules vieilles de plus de 800ms
+                val now = System.currentTimeMillis()
+                clickParticles.removeAll { now - it.creationTime > 800 }
             }
         }
     }
 
-    // Gestion du clic avec gain d'XP et Level Up
-    fun codeClicked() {
+    // Boucle asynchrone de génération d'événements aléatoires (toutes les 45 à 90 secondes)
+    private fun startEventOrchestrator() {
+        viewModelScope.launch {
+            while (true) {
+                delay(Random.nextLong(45000L, 90000L))
+                if (activeEvent == ActiveEventType.NONE) {
+                    triggerRandomEvent()
+                }
+            }
+        }
+    }
+
+    private fun triggerRandomEvent() {
+        val isBug = Random.nextBoolean()
+        if (isBug) {
+            activeEvent = ActiveEventType.BUG
+            eventMultiplier = 0.5 // Perte de 50% de la production passive
+            eventMessage = "[CRITICAL_ERR]: Bug de production ! Production passive ralentie de 50%."
+        } else {
+            activeEvent = ActiveEventType.FREELANCE
+            eventMessage = "[OPPORTUNITY]: Contrat Freelance urgent disponible !"
+        }
+    }
+
+    // Actions utilisateur sur les alertes
+    fun resolveBug() {
+        activeEvent = ActiveEventType.NONE
+        eventMultiplier = 1.0
+        eventMessage = ""
+    }
+
+    fun acceptFreelance() {
+        activeEvent = ActiveEventType.NONE
+        val payout = (linesPerSecond * 60.0).coerceAtLeast(500.0) // Gagne l'équivalent de 1min de prod
+        totalLinesOfCode += payout
+        viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode) }
+    }
+
+    fun dismissFreelance() {
+        activeEvent = ActiveEventType.NONE
+        eventMessage = ""
+    }
+
+    // Enregistrement d'un clic avec transmission des coordonnées géométriques de l'écran
+    fun codeClickedWithCoordinates(x: Float, y: Float) {
+        codeClicked()
+        val text = "+${linesPerClick.toInt()} LOC"
+        clickParticles.add(ClickParticle(x = x, y = y, text = text))
+    }
+
+    private fun codeClicked() {
         totalLinesOfCode += linesPerClick
         playerXp += 1
 
@@ -127,7 +199,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     fun buyJuniorDev() {
         val (cost, qty) = getUpgradeCostAndQuantity(100.0, 1.25, juniorDevsCount)
-        if (totalLinesOfCode >= cost && qty > 0 && playerLevel >= 2) { // Condition de niveau de joueur ajoutée !
+        if (totalLinesOfCode >= cost && qty > 0 && playerLevel >= 2) {
             totalLinesOfCode -= cost
             juniorDevsCount += qty
             viewModelScope.launch {
