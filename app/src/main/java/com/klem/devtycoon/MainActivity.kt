@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -121,6 +123,8 @@ fun MainNavigationStructure(viewModel: GameViewModel) {
 @Composable
 fun ClickerScreen(viewModel: GameViewModel) {
     val primaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+    // Couleur dorée exclusive pour l'affichage visuel des coups critiques
+    val criticalColorArgb = android.graphics.Color.parseColor("#FFD700")
     val nextFrameSignal = remember { mutableStateOf(0L) }
 
     LaunchedEffect(Unit) {
@@ -167,23 +171,55 @@ fun ClickerScreen(viewModel: GameViewModel) {
                 Text(text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
             }
 
-            // SECTION DU COMPOSANT DE QUÊTE INFÉRIEUR
-            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+            // CORRECTION DE LA BOÎTE DE QUÊTE (Taille adaptative sans superposition)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(bottom = 16.dp)
+            ) {
                 viewModel.currentQuest?.let { quest ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(), // Gère fluidement l'expansion de la boîte
                         shape = RoundedCornerShape(4.dp),
                         border = BorderStroke(1.dp, if (quest.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = ">_ QUÊTE: ${quest.title}", fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                Text(text = "[${quest.currentProgress.toInt()}/${quest.targetGoal.toInt()}]", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = ">_ QUÊTE: ${quest.title}",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(1f).padding(end = 4.dp)
+                                )
+                                Text(
+                                    text = "[${quest.currentProgress.toInt()}/${quest.targetGoal.toInt()}]",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
                             }
-                            Text(text = quest.description, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(vertical = 4.dp))
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = quest.description,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
 
                             if (quest.isCompleted) {
+                                Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = { viewModel.claimQuestRewards() },
                                     shape = RoundedCornerShape(2.dp),
@@ -199,9 +235,8 @@ fun ClickerScreen(viewModel: GameViewModel) {
             }
         }
 
-        val textPaint = remember(primaryColorArgb) {
+        val textPaint = remember {
             android.graphics.Paint().apply {
-                color = primaryColorArgb
                 textSize = 44f
                 typeface = android.graphics.Typeface.MONOSPACE
                 isAntiAlias = true
@@ -213,6 +248,9 @@ fun ClickerScreen(viewModel: GameViewModel) {
             viewModel.clickParticles.forEach { particle: ClickParticle ->
                 val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
                 textPaint.alpha = alpha
+                // Assigne dynamiquement la couleur selon si le clic est critique ou non
+                textPaint.color = if (particle.isCritical) criticalColorArgb else primaryColorArgb
+
                 val yOffset = particle.progress * 180f
                 drawContext.canvas.nativeCanvas.drawText(particle.text, particle.x - 50f, particle.y - yOffset, textPaint)
             }
@@ -253,7 +291,6 @@ fun ShopScreen(viewModel: GameViewModel) {
     val selectedCategory = remember { mutableStateOf("HARDWARE") }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState), horizontalAlignment = Alignment.CenterHorizontally) {
-        // QUANTITY SELECTOR
         Text(text = "=== QUANTITY_SELECTOR ===", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.align(Alignment.Start))
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -265,7 +302,6 @@ fun ShopScreen(viewModel: GameViewModel) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // NAVIGATION DES CATÉGORIES DU SHOP
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { selectedCategory.value = "HARDWARE" },
@@ -287,14 +323,12 @@ fun ShopScreen(viewModel: GameViewModel) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // AFFICHAGE DES ÉLÉMENTS DU SHOP SELON LA CATÉGORIE
         if (selectedCategory.value == "HARDWARE") {
             Text(text = "--- COMPOSANTS MATÉRIELS ---", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Start))
             Spacer(modifier = Modifier.height(12.dp))
             MarketItemCard("Clavier Mécanique [Niv. ${viewModel.keyboardLevel}]", viewModel.getCostForUI("KEYBOARD"), viewModel.getQtyForUI("KEYBOARD"), true, "", viewModel.totalLinesOfCode >= viewModel.getCostForUI("KEYBOARD"), { viewModel.buyKeyboard() })
             MarketItemCard("Serveur Dédié [Niv. ${viewModel.serverLevel}]", viewModel.getCostForUI("SERVER"), viewModel.getQtyForUI("SERVER"), viewModel.keyboardLevel >= 80, "REQUIS: Clavier Mécanique Niv. 80", viewModel.totalLinesOfCode >= viewModel.getCostForUI("SERVER"), { viewModel.buyServer() })
         } else {
-            // Seuil de déblocage basé sur les améliorations matérielles (ex: fixé à 15 pour des tests rapides, modifiable à 180)
             val isSoftwareUnlocked = viewModel.totalHardwareUpgrades >= 15
 
             if (isSoftwareUnlocked) {

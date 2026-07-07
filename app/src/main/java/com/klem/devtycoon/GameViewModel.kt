@@ -24,7 +24,8 @@ data class ClickParticle(
     val x: Float,
     val y: Float,
     val text: String,
-    var progress: Float = 0f
+    var progress: Float = 0f,
+    val isCritical: Boolean = false // Ajouté pour la fonctionnalité bonus
 )
 
 // Structure pour le système de quêtes aléatoires
@@ -220,15 +221,20 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     // --- INTERACTIONS CLICS ---
     fun codeClickedWithCoordinates(x: Float, y: Float) {
+        // FONCTIONNALITÉ BONUS : 5% de chance de coup critique (x3 LOC)
+        val isCritical = Random.nextDouble() < 0.05
+        val finalLinesGained = if (isCritical) linesPerClick * 3 else linesPerClick
+
         if (clickParticles.size < 12) {
-            clickParticles.add(ClickParticle(x = x, y = y, text = "+${linesPerClick.toInt()} LOC"))
+            val textValue = if (isCritical) "CRITIQUE ! +${finalLinesGained.toInt()} LOC" else "+${finalLinesGained.toInt()} LOC"
+            clickParticles.add(ClickParticle(x = x, y = y, text = textValue, isCritical = isCritical))
         }
 
-        totalLinesOfCode += linesPerClick
+        totalLinesOfCode += finalLinesGained
 
         // Progression quêtes
         updateQuestProgress(QuestType.CLICK_COUNT, 1.0)
-        updateQuestProgress(QuestType.PRODUCE_LOC, linesPerClick)
+        updateQuestProgress(QuestType.PRODUCE_LOC, finalLinesGained)
 
         // Gestion XP avec formule progressive
         val xpGained = 1 + skillPhp
