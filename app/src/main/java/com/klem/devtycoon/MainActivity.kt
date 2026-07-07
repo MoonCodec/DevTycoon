@@ -4,8 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -37,7 +35,8 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +47,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -140,14 +138,12 @@ fun ClickerScreen(viewModel: GameViewModel) {
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { offset ->
-                        // Capture des coordonnées absolues au pixel près
                         viewModel.codeClickedWithCoordinates(offset.x, offset.y)
                     }
                 )
             }
             .padding(24.dp)
     ) {
-        // Couche de rendu standard : Statistiques
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -195,58 +191,72 @@ fun ClickerScreen(viewModel: GameViewModel) {
             )
         }
 
-        // Couche Graphique Éphémère : Rendu des Particules Volatiles
+        // OPTIMISATION COMPLIANCE : Clé d'identifiant stable anti-lag pour le dessin
         viewModel.clickParticles.forEach { particle ->
-            // Conversion des pixels physiques en Dp indépendants pour éviter l'altération multi-écrans
-            val xDp = with(density) { particle.x.toDp() }
-            val yDp = with(density) { particle.y.toDp() }
+            key(particle.id) {
+                val xDp = with(density) { particle.x.toDp() }
+                val yDp = with(density) { particle.y.toDp() }
 
-            // Animation locale du cycle de vie de la particule
-            val elapsedTime = System.currentTimeMillis() - particle.creationTime
-            val animationProgress = (elapsedTime / 800f).coerceIn(0f, 1f)
+                val elapsedTime = System.currentTimeMillis() - particle.creationTime
+                val animationProgress = (elapsedTime / 600f).coerceIn(0f, 1f)
 
-            // Calculs de trajectoire ascendante et disparition graduelle (Fade Out)
-            val yOffset = - (animationProgress * 120f)
-            val alpha = 1f - animationProgress
+                val yOffset = - (animationProgress * 100f)
+                val alpha = 1f - animationProgress
 
-            Text(
-                text = particle.text,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .offset(x = xDp - 20.dp, y = yDp + yOffset.dp)
-                    .graphicsLayer(alpha = alpha)
-            )
+                Text(
+                    text = particle.text,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .offset(x = xDp - 20.dp, y = yDp + yOffset.dp)
+                        .graphicsLayer(alpha = alpha)
+                )
+            }
         }
 
-        // Couche d'Interception d'Événements Majeurs (Système Aléatoire)
+        // SYSTÈME DE POPUP CENTRALISÉ (Gestion des alertes & CADEAUX)
         if (viewModel.activeEvent != ActiveEventType.NONE) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.85f))
-                    .pointerInput(Unit) { detectTapGestures { /* Bloque les clics vers le fond */ } }
+                    .pointerInput(Unit) { detectTapGestures { } }
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val isBug = viewModel.activeEvent == ActiveEventType.BUG
+                val isReward = viewModel.activeEvent == ActiveEventType.LEVEL_UP_REWARD
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(0.dp), // Style terminal industriel
+                    shape = RoundedCornerShape(0.dp),
                     border = BorderStroke(
                         width = 2.dp,
-                        color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        color = when {
+                            isBug -> MaterialTheme.colorScheme.error
+                            isReward -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.primary
+                        }
                     ),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (viewModel.activeEvent == ActiveEventType.BUG) "!! KERNEL_PANIC !!" else "!! INCOMING_CONTRACT !!",
+                            text = when {
+                                isBug -> "!! KERNEL_PANIC !!"
+                                isReward -> "== LEVEL_UP_REWARD =="
+                                else -> "!! INCOMING_CONTRACT !!"
+                            },
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp,
-                            color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            color = when {
+                                isBug -> MaterialTheme.colorScheme.error
+                                isReward -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.primary
+                            }
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -254,40 +264,53 @@ fun ClickerScreen(viewModel: GameViewModel) {
                         Text(
                             text = viewModel.eventMessage,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = MaterialTheme.colorScheme.primary
                         )
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        if (viewModel.activeEvent == ActiveEventType.BUG) {
-                            Button(
-                                onClick = { viewModel.resolveBug() },
-                                shape = RoundedCornerShape(2.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text("[ DEBUGGER_LE_SYSTEME ]", fontFamily = FontFamily.Monospace, color = Color.White)
-                            }
-                        } else {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        when (viewModel.activeEvent) {
+                            ActiveEventType.BUG -> {
                                 Button(
-                                    onClick = { viewModel.dismissFreelance() },
+                                    onClick = { viewModel.resolveBug() },
                                     shape = RoundedCornerShape(2.dp),
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                 ) {
-                                    Text("IGNORER", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
+                                    Text("[ DEBUGGER_LE_SYSTEME ]", fontFamily = FontFamily.Monospace, color = Color.White)
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                            }
+                            ActiveEventType.LEVEL_UP_REWARD -> {
                                 Button(
-                                    onClick = { viewModel.acceptFreelance() },
+                                    onClick = { viewModel.dismissEvent() },
                                     shape = RoundedCornerShape(2.dp),
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                 ) {
-                                    Text("ACCEPTER", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background)
+                                    Text("[ RECLAIM_REWARD ]", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background)
+                                }
+                            }
+                            else -> {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Button(
+                                        onClick = { viewModel.dismissEvent() },
+                                        shape = RoundedCornerShape(2.dp),
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Text("IGNORER", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Button(
+                                        onClick = { viewModel.acceptFreelance() },
+                                        shape = RoundedCornerShape(2.dp),
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Text("ACCEPTER", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background)
+                                    }
                                 }
                             }
                         }
@@ -350,7 +373,6 @@ fun ShopScreen(viewModel: GameViewModel) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Clavier Mécanique
         MarketItemCard(
             title = "Clavier Mécanique [Niv. ${viewModel.keyboardLevel}]",
             cost = viewModel.getCostForUI("KEYBOARD"),
@@ -361,7 +383,6 @@ fun ShopScreen(viewModel: GameViewModel) {
             onBuyClick = { viewModel.buyKeyboard() }
         )
 
-        // Développeur Junior (Condition : Joueur Niv. 2)
         MarketItemCard(
             title = "Dev Junior [Qté: ${viewModel.juniorDevsCount}]",
             cost = viewModel.getCostForUI("JUNIOR"),
@@ -372,7 +393,6 @@ fun ShopScreen(viewModel: GameViewModel) {
             onBuyClick = { viewModel.buyJuniorDev() }
         )
 
-        // Serveur Dédié (Condition : Clavier Niv. 80)
         MarketItemCard(
             title = "Serveur Dédié [Niv. ${viewModel.serverLevel}]",
             cost = viewModel.getCostForUI("SERVER"),
@@ -383,7 +403,6 @@ fun ShopScreen(viewModel: GameViewModel) {
             onBuyClick = { viewModel.buyServer() }
         )
 
-        // IA Copilot (Condition : Dev Junior Niv. 10)
         MarketItemCard(
             title = "IA Copilot [Niv. ${viewModel.copilotLevel}]",
             cost = viewModel.getCostForUI("COPILOT"),
@@ -394,7 +413,6 @@ fun ShopScreen(viewModel: GameViewModel) {
             onBuyClick = { viewModel.buyCopilot() }
         )
 
-        // Framework Custom (Condition : Serveur Niv. 5)
         MarketItemCard(
             title = "Framework Custom [Niv. ${viewModel.frameworkLevel}]",
             cost = viewModel.getCostForUI("FRAMEWORK"),
