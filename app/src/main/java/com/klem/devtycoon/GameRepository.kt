@@ -18,11 +18,13 @@ class GameRepository(private val context: Context) {
     private val keyTotalLines = doublePreferencesKey("total_lines")
     private val keyKeyboardLevel = intPreferencesKey("keyboard_level")
     private val keyJuniorDevs = intPreferencesKey("junior_devs_count")
-
-    // Nouvelles clés pour l'extension du marché
     private val keyServerLevel = intPreferencesKey("server_level")
     private val keyCopilotLevel = intPreferencesKey("copilot_level")
     private val keyFrameworkLevel = intPreferencesKey("framework_level")
+
+    // Nouveaux champs pour le niveau du joueur
+    private val keyPlayerLevel = intPreferencesKey("player_level")
+    private val keyPlayerXp = intPreferencesKey("player_xp")
 
     val gameStateFlow: Flow<SavedGameState> = context.dataStore.data.map { preferences ->
         SavedGameState(
@@ -31,44 +33,42 @@ class GameRepository(private val context: Context) {
             juniorDevsCount = preferences[keyJuniorDevs] ?: 0,
             serverLevel = preferences[keyServerLevel] ?: 0,
             copilotLevel = preferences[keyCopilotLevel] ?: 0,
-            frameworkLevel = preferences[keyFrameworkLevel] ?: 0
+            frameworkLevel = preferences[keyFrameworkLevel] ?: 0,
+            playerLevel = preferences[keyPlayerLevel] ?: 1, // Démarre au niveau 1
+            playerXp = preferences[keyPlayerXp] ?: 0
         )
     }
 
     suspend fun saveTotalLines(lines: Double) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyTotalLines] = lines
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyTotalLines] = lines }
     }
 
     suspend fun saveKeyboardLevel(level: Int) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyKeyboardLevel] = level
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyKeyboardLevel] = level }
     }
 
     suspend fun saveJuniorDevsCount(count: Int) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyJuniorDevs] = count
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyJuniorDevs] = count }
     }
 
     suspend fun saveServerLevel(level: Int) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyServerLevel] = level
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyServerLevel] = level }
     }
 
     suspend fun saveCopilotLevel(level: Int) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyCopilotLevel] = level
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyCopilotLevel] = level }
     }
 
     suspend fun saveFrameworkLevel(level: Int) {
-        context.dataStore.edit { preferences: MutablePreferences ->
-            preferences[keyFrameworkLevel] = level
-        }
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyFrameworkLevel] = level }
+    }
+
+    suspend fun savePlayerLevel(level: Int) {
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyPlayerLevel] = level }
+    }
+
+    suspend fun savePlayerXp(xp: Int) {
+        context.dataStore.edit { preferences: MutablePreferences -> preferences[keyPlayerXp] = xp }
     }
 }
 
@@ -78,5 +78,7 @@ data class SavedGameState(
     val juniorDevsCount: Int,
     val serverLevel: Int,
     val copilotLevel: Int,
-    val frameworkLevel: Int
+    val frameworkLevel: Int,
+    val playerLevel: Int,
+    val playerXp: Int
 )

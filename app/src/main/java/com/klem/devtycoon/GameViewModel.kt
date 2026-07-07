@@ -16,7 +16,6 @@ enum class PurchaseQuantity { X1, X10, X50, X100, MAX }
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
-    // États globaux
     var totalLinesOfCode by mutableStateOf(0.0)
         private set
     var keyboardLevel by mutableStateOf(0)
@@ -30,12 +29,19 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     var frameworkLevel by mutableStateOf(0)
         private set
 
-    // Configuration globale du sélecteur d'achat
+    // Nouvelles variables d'expérience
+    var playerLevel by mutableStateOf(1)
+        private set
+    var playerXp by mutableStateOf(0)
+        private set
+
     var selectedQuantity by mutableStateOf(PurchaseQuantity.X1)
 
-    // Getters dynamiques de production
     val linesPerClick: Double get() = 1.0 + keyboardLevel
     val linesPerSecond: Double get() = (juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)
+
+    // Formule simple pour l'XP nécessaire au prochain niveau
+    val xpNeededForNextLevel: Int get() = playerLevel * 50
 
     init {
         loadSavedState()
@@ -52,9 +58,9 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 serverLevel = savedState.serverLevel
                 copilotLevel = savedState.copilotLevel
                 frameworkLevel = savedState.frameworkLevel
-            } catch (e: Exception) {
-                // Valeurs par défaut conservées en cas d'absence de fichier
-            }
+                playerLevel = savedState.playerLevel
+                playerXp = savedState.playerXp
+            } catch (e: Exception) {}
         }
     }
 
@@ -70,12 +76,22 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         }
     }
 
+    // Gestion du clic avec gain d'XP et Level Up
     fun codeClicked() {
         totalLinesOfCode += linesPerClick
-        viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode) }
-    }
+        playerXp += 1
 
-    // --- FORMULES ET CALCULATEUR GÉOMÉTRIQUE POUR ACHATS EN MASSE ---
+        if (playerXp >= xpNeededForNextLevel) {
+            playerXp -= xpNeededForNextLevel
+            playerLevel += 1
+            viewModelScope.launch { repository.savePlayerLevel(playerLevel) }
+        }
+
+        viewModelScope.launch {
+            repository.saveTotalLines(totalLinesOfCode)
+            repository.savePlayerXp(playerXp)
+        }
+    }
 
     private fun getUpgradeCostAndQuantity(baseCost: Double, multiplier: Double, currentLevel: Int): Pair<Double, Int> {
         val qtyToBuy = when (selectedQuantity) {
@@ -97,8 +113,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         return Pair(totalCost, qtyToBuy)
     }
 
-    // --- ACTIONS DU MARCHÉ ---
-
     fun buyKeyboard() {
         val (cost, qty) = getUpgradeCostAndQuantity(15.0, 1.15, keyboardLevel)
         if (totalLinesOfCode >= cost && qty > 0) {
@@ -113,7 +127,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     fun buyJuniorDev() {
         val (cost, qty) = getUpgradeCostAndQuantity(100.0, 1.25, juniorDevsCount)
-        if (totalLinesOfCode >= cost && qty > 0) {
+        if (totalLinesOfCode >= cost && qty > 0 && playerLevel >= 2) { // Condition de niveau de joueur ajoutée !
             totalLinesOfCode -= cost
             juniorDevsCount += qty
             viewModelScope.launch {
@@ -159,7 +173,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         }
     }
 
-    // Getters de surface d'exposition pour l'interface UI
     fun getCostForUI(type: String): Double = when(type) {
         "KEYBOARD" -> getUpgradeCostAndQuantity(15.0, 1.15, keyboardLevel).first
         "JUNIOR" -> getUpgradeCostAndQuantity(100.0, 1.25, juniorDevsCount).first
