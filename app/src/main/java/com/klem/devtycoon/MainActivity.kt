@@ -332,7 +332,7 @@ fun ShopScreen(viewModel: GameViewModel) {
                 Text(text = "--- COMPOSANTS LOGICIELS ---", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(12.dp))
                 MarketItemCard("Dev Junior [Qté: ${viewModel.juniorDevsCount}]", viewModel.getCostForUI("JUNIOR"), viewModel.getQtyForUI("JUNIOR"), viewModel.playerLevel >= 2, "REQUIS: Développeur Niv. 2", viewModel.totalLinesOfCode >= viewModel.getCostForUI("JUNIOR"), { viewModel.buyJuniorDev() })
-                MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getCostForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
+                MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getQtyForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
                 MarketItemCard("Framework Custom [Niv. ${viewModel.frameworkLevel}]", viewModel.getCostForUI("FRAMEWORK"), viewModel.getQtyForUI("FRAMEWORK"), viewModel.serverLevel >= 5, "REQUIS: Serveur Dédié Niv. 5", viewModel.totalLinesOfCode >= viewModel.getCostForUI("FRAMEWORK"), { viewModel.buyFramework() })
             } else {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
