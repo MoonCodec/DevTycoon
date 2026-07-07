@@ -25,7 +25,7 @@ data class ClickParticle(
     val y: Float,
     val text: String,
     var progress: Float = 0f,
-    val isCritical: Boolean = false // Ajouté pour la fonctionnalité bonus
+    val isCritical: Boolean = false
 )
 
 // Structure pour le système de quêtes aléatoires
@@ -38,7 +38,8 @@ data class Quest(
     var currentProgress: Double = 0.0,
     val rewardLoc: Double,
     val rewardTalentPoints: Int,
-    var isCompleted: Boolean = false
+    var isCompleted: Boolean = false,
+    val targetUpgradeKey: String = "" // Clé pour identifier l'upgrade ciblé si type == BUY_UPGRADE
 )
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
@@ -72,8 +73,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     // --- SYSTÈME DE QUÊTES ---
     var currentQuest by mutableStateOf<Quest?>(null)
         private set
-    private var totalClicksInCurrentQuest = 0.0
-    private var locProducedInCurrentQuest = 0.0
 
     // Configuration des Catégories du Shop (Compteurs d'achats cumulés)
     var totalHardwareUpgrades by mutableStateOf(0)
@@ -96,7 +95,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     val linesPerClick: Double get() = (1.0 + keyboardLevel) * (1.0 + (skillHtml * 0.10))
     val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier * (1.0 + (skillJs * 0.15))
 
-    // FORMULE XP PROGRESSIVE ET NON-LINÉAIRE (Courbe de difficulté accrue)
+    // FORMULE XP PROGRESSIVE ET NON-LINÉAIRE
     val xpNeededForNextLevel: Int get() = floor(100.0 * (playerLevel.toDouble().pow(1.5))).toInt()
 
     init {
@@ -122,7 +121,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 skillJs = savedState.skillJs
                 skillPhp = savedState.skillPhp
 
-                // Recalculer les totaux de catégories à partir des niveaux chargés
                 totalHardwareUpgrades = keyboardLevel + serverLevel
                 totalSoftwareUpgrades = juniorDevsCount + copilotLevel + frameworkLevel
 
@@ -156,48 +154,88 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
         currentQuest = when (chosenType) {
             QuestType.CLICK_COUNT -> {
-                val target = floor(15.0 + (lvl * 10.0) * Random.nextDouble(0.8, 1.3))
+                // Difficulté accrue : Score basé sur (Puissance de 1 clic * 50 clics) * 10
+                val computedTarget = floor(linesPerClick * 50.0 * 10.0)
+                // Évite un blocage si linesPerClick est à 0 par anomalie
+                val target = if (computedTarget <= 0) 500.0 else computedTarget
+
                 Quest(
-                    title = "Optimisation Compilateur",
-                    description = "Effectuez ${target.toInt()} clics manuels pour stabiliser le build.",
+                    title = "Refactoring de Production",
+                    description = "Générez un volume critique de ${target.toInt()} LOC via des clics optimisés.",
                     type = chosenType,
                     targetGoal = target,
-                    rewardLoc = floor((lvl * 50.0) * 1.5),
-                    rewardTalentPoints = if (Random.nextDouble() > 0.85) 1 else 0
+                    rewardLoc = floor((lvl * 150.0) * 2.0),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.75) 1 else 0
                 )
             }
             QuestType.PRODUCE_LOC -> {
-                val target = floor((lvl * 200.0) * Random.nextDouble(1.0, 2.5))
+                // Quêtes de production de fond beaucoup plus ambitieuses (multiplié par 10 par rapport à l'ancienne version)
+                val target = floor((lvl * 2000.0) * Random.nextDouble(1.5, 3.5))
                 Quest(
-                    title = "Livraison Sprint",
-                    description = "Générez ${target.toInt()} lignes de code au total.",
+                    title = "Architecture Cloud End-to-End",
+                    description = "Déployez de nouvelles fonctionnalités pour atteindre +${target.toInt()} LOC globales.",
                     type = chosenType,
                     targetGoal = target,
-                    rewardLoc = floor((lvl * 75.0) * 1.3),
-                    rewardTalentPoints = if (Random.nextDouble() > 0.80) 1 else 0
+                    rewardLoc = floor((lvl * 500.0) * 1.5),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.70) 1 else 0
                 )
             }
             QuestType.BUY_UPGRADE -> {
-                val target = floor(1.0 + (lvl / 3.0)).coerceAtMost(5.0)
+                // Sélectionne une cible matérielle ou logicielle cohérente avec l'avancement
+                val pool = mutableListOf<Pair<String, String>>()
+                pool.add(Pair("KEYBOARD", "Clavier Mécanique"))
+                if (playerLevel >= 2 && totalHardwareUpgrades >= 15) pool.add(Pair("JUNIOR", "Développeur Junior"))
+                if (keyboardLevel >= 80) pool.add(Pair("SERVER", "Serveur Dédié"))
+                if (juniorDevsCount >= 10 && totalHardwareUpgrades >= 15) pool.add(Pair("COPILOT", "IA Copilot"))
+                if (serverLevel >= 5 && totalHardwareUpgrades >= 15) pool.add(Pair("FRAMEWORK", "Framework Custom"))
+
+                val selectedUpgrade = pool[Random.nextInt(pool.size)]
+                val currentLevelOfTarget = when (selectedUpgrade.first) {
+                    "KEYBOARD" -> keyboardLevel
+                    "JUNIOR" -> juniorDevsCount
+                    "SERVER" -> serverLevel
+                    "COPILOT" -> copilotLevel
+                    "FRAMEWORK" -> frameworkLevel
+                    else -> 0
+                }
+
+                // Objectif : Augmenter significativement le niveau actuel de cet élément spécifique
+                val targetStep = Random.nextInt(2, 6) + (lvl / 2).coerceAtMost(10)
+                val finalTargetGoal = (currentLevelOfTarget + targetStep).toDouble()
+
                 Quest(
-                    title = "Mise à niveau Hardware/Software",
-                    description = "Achetez ${target.toInt()} améliorations dans la boutique.",
+                    title = "Mise à Niveau : ${selectedUpgrade.second}",
+                    description = "Atteignez le Niveau ${finalTargetGoal.toInt()} sur votre ${selectedUpgrade.second} pour restructurer la stack.",
                     type = chosenType,
-                    targetGoal = target,
-                    rewardLoc = floor((lvl * 60.0) * 1.4),
-                    rewardTalentPoints = if (Random.nextDouble() > 0.90) 1 else 0
+                    targetGoal = finalTargetGoal,
+                    currentProgress = currentLevelOfTarget.toDouble(),
+                    rewardLoc = floor((lvl * 300.0) * 1.8),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.65) 1 else 0,
+                    targetUpgradeKey = selectedUpgrade.first
                 )
             }
         }
-        totalClicksInCurrentQuest = 0.0
-        locProducedInCurrentQuest = 0.0
     }
 
     private fun updateQuestProgress(type: QuestType, amount: Double) {
         val quest = currentQuest ?: return
         if (quest.isCompleted || quest.type != type) return
 
-        quest.currentProgress += amount
+        if (type == QuestType.BUY_UPGRADE) {
+            // Pour les upgrades, la progression reflète le niveau actuel en temps réel
+            val actualLevel = when (quest.targetUpgradeKey) {
+                "KEYBOARD" -> keyboardLevel
+                "JUNIOR" -> juniorDevsCount
+                "SERVER" -> serverLevel
+                "COPILOT" -> copilotLevel
+                "FRAMEWORK" -> frameworkLevel
+                else -> 0
+            }
+            quest.currentProgress = actualLevel.toDouble()
+        } else {
+            quest.currentProgress += amount
+        }
+
         if (quest.currentProgress >= quest.targetGoal) {
             quest.currentProgress = quest.targetGoal
             quest.isCompleted = true
@@ -221,7 +259,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     // --- INTERACTIONS CLICS ---
     fun codeClickedWithCoordinates(x: Float, y: Float) {
-        // FONCTIONNALITÉ BONUS : 5% de chance de coup critique (x3 LOC)
         val isCritical = Random.nextDouble() < 0.05
         val finalLinesGained = if (isCritical) linesPerClick * 3 else linesPerClick
 
@@ -232,11 +269,10 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
         totalLinesOfCode += finalLinesGained
 
-        // Progression quêtes
-        updateQuestProgress(QuestType.CLICK_COUNT, 1.0)
+        // Progression des quêtes basées sur l'apport de code par clic
+        updateQuestProgress(QuestType.CLICK_COUNT, finalLinesGained)
         updateQuestProgress(QuestType.PRODUCE_LOC, finalLinesGained)
 
-        // Gestion XP avec formule progressive
         val xpGained = 1 + skillPhp
         playerXp += xpGained
 
@@ -311,12 +347,14 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 totalHardwareUpgrades += 1
                 eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Clavier Mécanique +1 !"
                 viewModelScope.launch { repository.saveKeyboardLevel(keyboardLevel) }
+                updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             }
             2 -> {
                 juniorDevsCount += 1
                 totalSoftwareUpgrades += 1
                 eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Dev Junior +1 !"
                 viewModelScope.launch { repository.saveJuniorDevsCount(juniorDevsCount) }
+                updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             }
         }
     }
@@ -365,14 +403,14 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         return Pair(totalCost, qtyToBuy)
     }
 
-    // --- MÀJ DES COMPTEURS DU SHOP PAR CATÉGORIES ---
+    // --- ENREGISTREMENT ACHATS ET VÉRIFICATION DE LA QUÊTE CIBLE ---
     fun buyKeyboard() {
         val (cost, qty) = getUpgradeCostAndQuantity(15.0, 1.15, keyboardLevel)
         if (totalLinesOfCode >= cost && qty > 0) {
             totalLinesOfCode -= cost
             keyboardLevel += qty
             totalHardwareUpgrades += qty
-            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
+            updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveKeyboardLevel(keyboardLevel) }
         }
     }
@@ -383,7 +421,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             totalLinesOfCode -= cost
             juniorDevsCount += qty
             totalSoftwareUpgrades += qty
-            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
+            updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveJuniorDevsCount(juniorDevsCount) }
         }
     }
@@ -394,7 +432,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             totalLinesOfCode -= cost
             serverLevel += qty
             totalHardwareUpgrades += qty
-            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
+            updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveServerLevel(serverLevel) }
         }
     }
@@ -405,7 +443,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             totalLinesOfCode -= cost
             copilotLevel += qty
             totalSoftwareUpgrades += qty
-            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
+            updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveCopilotLevel(copilotLevel) }
         }
     }
@@ -416,7 +454,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             totalLinesOfCode -= cost
             frameworkLevel += qty
             totalSoftwareUpgrades += qty
-            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
+            updateQuestProgress(QuestType.BUY_UPGRADE, 0.0)
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveFrameworkLevel(frameworkLevel) }
         }
     }
