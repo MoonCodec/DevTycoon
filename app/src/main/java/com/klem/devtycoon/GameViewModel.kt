@@ -9,7 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 
-class GameViewModel: ViewModel() {
+class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     // États du jeu (Source de vérité)
     var totalLinesOfCode by mutableStateOf(0.0)
@@ -26,7 +26,7 @@ class GameViewModel: ViewModel() {
         get() = 1.0 + keyboardLevel
 
     val linesPerSecond: Double
-        get() = juniorDevsCount * 2.0 // Chaque dev Junior produit 2 lignes/secondes
+        get() = juniorDevsCount * 2.0
 
     val keyboardUpgradeCost: Double
         get() = 15.0 * 1.15.pow(keyboardLevel)
@@ -34,24 +34,41 @@ class GameViewModel: ViewModel() {
     val juniorDevCost: Double
         get() = 100.0 * 1.25.pow(juniorDevsCount)
 
-    // Initialisation du moteur de jeu passif
     init {
+        loadSavedState()
         startGameLoop()
     }
 
-    private fun startGameLoop() {
-        // Lance un thread ultra-léger (Coroutine) lié à la durée de vie de l'application
+    // Charger les données persistées au démarrage du processus
+    private fun loadSavedState() {
         viewModelScope.launch {
-            while (true) {
-                delay(1000L) // Attend exactement 1 seconde
-                totalLinesOfCode += linesPerSecond
+            repository.gameStateFlow.collect { savedState ->
+                totalLinesOfCode = savedState.totalLinesOfCode
+                keyboardLevel = savedState.keyboardLevel
+                juniorDevsCount = savedState.juniorDevsCount
             }
         }
     }
 
-    // Actions de l'utilisateur
+    private fun startGameLoop() {
+        viewModelScope.launch {
+            while (true) {
+                delay(1000L)
+                if (linesPerSecond > 0) {
+                    totalLinesOfCode += linesPerSecond
+                    // Sauvegarde la progression automatique à chaque tick
+                    repository.saveTotalLines(totalLinesOfCode)
+                }
+            }
+        }
+    }
+
+    // Actions utilisateur avec persistance immédiate
     fun codeClicked() {
         totalLinesOfCode += linesPerClick
+        viewModelScope.launch {
+            repository.saveTotalLines(totalLinesOfCode)
+        }
     }
 
     fun buyKeyboardUpgrade() {
@@ -59,6 +76,10 @@ class GameViewModel: ViewModel() {
         if (totalLinesOfCode >= cost) {
             totalLinesOfCode -= cost
             keyboardLevel++
+            viewModelScope.launch {
+                repository.saveTotalLines(totalLinesOfCode)
+                repository.saveKeyboardLevel(keyboardLevel)
+            }
         }
     }
 
@@ -67,6 +88,10 @@ class GameViewModel: ViewModel() {
         if (totalLinesOfCode >= cost) {
             totalLinesOfCode -= cost
             juniorDevsCount++
+            viewModelScope.launch {
+                repository.saveTotalLines(totalLinesOfCode)
+                repository.saveJuniorDevsCount(juniorDevsCount)
+            }
         }
     }
 }
