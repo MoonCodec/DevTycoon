@@ -257,6 +257,12 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         generateNewQuest()
     }
 
+    fun abandonAndSkipQuest() {
+        // Optionnel : Je peut ajouter un coût en LOC si je veut éviter les abus,
+        // mais pour l'instant je génère juste une nouvelle quyête proprement.
+        generateNewQuest()
+    }
+
     // --- INTERACTIONS CLICS ---
     fun codeClickedWithCoordinates(x: Float, y: Float) {
         val isCritical = Random.nextDouble() < 0.05

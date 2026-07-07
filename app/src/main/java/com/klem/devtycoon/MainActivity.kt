@@ -227,6 +227,17 @@ fun ClickerScreen(viewModel: GameViewModel) {
                                 ) {
                                     Text(text = "RÉCUPÉRER: +${quest.rewardLoc.toInt()} LOC ${if(quest.rewardTalentPoints > 0) " +1 PT" else ""}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.background)
                                 }
+                            } else {
+                                // Bouton discret pour abandonner si la quête est trop longue/difficile
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = { viewModel.abandonAndSkipQuest() },
+                                    shape = RoundedCornerShape(2.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text(text = "[ ABANDONNER / RE-ROLL ]", fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                                }
                             }
                         }
                     }
