@@ -28,7 +28,6 @@ data class ClickParticle(
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
-    // États persistés
     var totalLinesOfCode by mutableStateOf(0.0)
         private set
     var keyboardLevel by mutableStateOf(0)
@@ -46,7 +45,16 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     var playerXp by mutableStateOf(0)
         private set
 
-    // États UI Volatils
+    // NOUVEAU : États de l'arbre de compétences
+    var talentPoints by mutableStateOf(0)
+        private set
+    var skillHtml by mutableStateOf(0)
+        private set
+    var skillJs by mutableStateOf(0)
+        private set
+    var skillPhp by mutableStateOf(0)
+        private set
+
     val clickParticles = mutableStateListOf<ClickParticle>()
     var activeEvent by mutableStateOf(ActiveEventType.NONE)
         private set
@@ -57,9 +65,9 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     var selectedQuantity by mutableStateOf(PurchaseQuantity.X1)
 
-    // Getters de production
-    val linesPerClick: Double get() = 1.0 + keyboardLevel
-    val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier
+    // Application des bonus de l'arbre de compétences dans les calculs globaux
+    val linesPerClick: Double get() = (1.0 + keyboardLevel) * (1.0 + (skillHtml * 0.10))
+    val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier * (1.0 + (skillJs * 0.15))
     val xpNeededForNextLevel: Int get() = playerLevel * 50
 
     init {
@@ -80,6 +88,10 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 frameworkLevel = savedState.frameworkLevel
                 playerLevel = savedState.playerLevel
                 playerXp = savedState.playerXp
+                talentPoints = savedState.talentPoints
+                skillHtml = savedState.skillHtml
+                skillJs = savedState.skillJs
+                skillPhp = savedState.skillPhp
             } catch (e: Exception) {}
         }
     }
@@ -92,7 +104,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                     totalLinesOfCode += linesPerSecond
                     repository.saveTotalLines(totalLinesOfCode)
                 }
-                // Nettoyage rapide des particules pour éviter les lags (600ms au lieu de 800ms)
                 val now = System.currentTimeMillis()
                 clickParticles.removeAll { now - it.creationTime > 600 }
             }
@@ -141,20 +152,26 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     }
 
     fun codeClickedWithCoordinates(x: Float, y: Float) {
-        // Limiteur de sécurité anti-lag : max 15 particules affichées en même temps
         if (clickParticles.size < 15) {
             val text = "+${linesPerClick.toInt()} LOC"
             clickParticles.add(ClickParticle(x = x, y = y, text = text))
         }
 
         totalLinesOfCode += linesPerClick
-        playerXp += 1
+
+        // Bonus de gain d'XP grâce au langage PHP (Arbre)
+        val xpGained = 1 + skillPhp
+        playerXp += xpGained
 
         if (playerXp >= xpNeededForNextLevel) {
             playerXp -= xpNeededForNextLevel
             playerLevel += 1
+            talentPoints += 1 // RECOMPENSE : 1 point d'arbre de compétence !
             triggerLevelUpReward(playerLevel)
-            viewModelScope.launch { repository.savePlayerLevel(playerLevel) }
+            viewModelScope.launch {
+                repository.savePlayerLevel(playerLevel)
+                repository.saveTalentPoints(talentPoints)
+            }
         }
 
         viewModelScope.launch {
@@ -163,7 +180,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         }
     }
 
-    // NOUVEAU : Système d'attribution des cadeaux de niveau
     private fun triggerLevelUpReward(newLvl: Int) {
         activeEvent = ActiveEventType.LEVEL_UP_REWARD
 
@@ -171,17 +187,57 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             0 -> {
                 val bonusLoc = newLvl * 250.0
                 totalLinesOfCode += bonusLoc
-                eventMessage = "[LEVEL_UP]: Vous passez Niveau $newLvl ! CADEAU : +${bonusLoc.toInt()} LOC octroyées par la communauté Open Source."
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : +${bonusLoc.toInt()} LOC !"
             }
             1 -> {
                 keyboardLevel += 1
-                eventMessage = "[LEVEL_UP]: Vous passez Niveau $newLvl ! CADEAU : Un sponsor vous offre un nouveau composant ! (Clavier Mécanique +1)"
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : Clavier Mécanique +1 !"
                 viewModelScope.launch { repository.saveKeyboardLevel(keyboardLevel) }
             }
             2 -> {
                 juniorDevsCount += 1
-                eventMessage = "[LEVEL_UP]: Vous passez Niveau $newLvl ! CADEAU : Un stagiaire a été impressionné par votre code et vous rejoint ! (Dev Junior +1)"
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : Dev Junior +1 !"
                 viewModelScope.launch { repository.saveJuniorDevsCount(juniorDevsCount) }
+            }
+        }
+    }
+
+    // LOGIQUE DE L'ARBRE DE COMPÉTENCES (VÉRIFICATION DES PRÉREQUIS DE BRANCHES)
+    fun upgradeLanguage(lang: String) {
+        if (talentPoints <= 0) return
+
+        when (lang) {
+            "HTML" -> {
+                if (skillHtml < 5) { // Max niveau 5
+                    skillHtml += 1
+                    talentPoints -= 1
+                    viewModelScope.launch {
+                        repository.saveSkillHtml(skillHtml)
+                        repository.saveTalentPoints(talentPoints)
+                    }
+                }
+            }
+            "JS" -> {
+                // CONDITION DE BRANCHE : Nécessite HTML Niv. 3
+                if (skillHtml >= 3 && skillJs < 5) {
+                    skillJs += 1
+                    talentPoints -= 1
+                    viewModelScope.launch {
+                        repository.saveSkillJs(skillJs)
+                        repository.saveTalentPoints(talentPoints)
+                    }
+                }
+            }
+            "PHP" -> {
+                // CONDITION DE BRANCHE : Nécessite JS Niv. 4
+                if (skillJs >= 4 && skillPhp < 5) {
+                    skillPhp += 1
+                    talentPoints -= 1
+                    viewModelScope.launch {
+                        repository.saveSkillPhp(skillPhp)
+                        repository.saveTalentPoints(talentPoints)
+                    }
+                }
             }
         }
     }
