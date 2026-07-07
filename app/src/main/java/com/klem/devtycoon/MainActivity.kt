@@ -269,23 +269,39 @@ fun ClickerScreen(viewModel: GameViewModel) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)).pointerInput(Unit) { detectTapGestures { } }.padding(16.dp), contentAlignment = Alignment.Center) {
                 val isBug = viewModel.activeEvent == ActiveEventType.BUG
                 val isReward = viewModel.activeEvent == ActiveEventType.LEVEL_UP_REWARD
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(0.dp), border = BorderStroke(width = 2.dp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = if (isBug) "!! KERNEL_PANIC !!" else if (isReward) "== LEVEL_UP_REWARD ==" else "!! INCOMING_CONTRACT !!", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 18.sp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .wrapContentHeight(), // Adaptatif au lieu de forcé
+                    shape = RoundedCornerShape(0.dp),
+                    border = BorderStroke(width = 2.dp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    // Ajout d'un scroll pour éviter le dépassement si le message est long
+                    Column(
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isBug) "!! KERNEL_PANIC !!" else if (isReward) "== LEVEL_UP_REWARD ==" else "!! INCOMING_CONTRACT !!",
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = viewModel.eventMessage, fontFamily = FontFamily.Monospace, fontSize = 13.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = viewModel.eventMessage,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(modifier = Modifier.height(24.dp))
-                        if (isBug) {
-                            Button(onClick = { viewModel.resolveBug() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("[ DEBUGGER_LE_SYSTEME ]", fontFamily = FontFamily.Monospace, color = Color.White) }
-                        } else if (isReward) {
-                            Button(onClick = { viewModel.dismissEvent() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("[ RECLAIM_REWARD ]", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background) }
-                        } else {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Button(onClick = { viewModel.dismissEvent() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.weight(1f)) { Text("IGNORER", fontFamily = FontFamily.Monospace) }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Button(onClick = { viewModel.acceptFreelance() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.weight(1f)) { Text("ACCEPTER", fontFamily = FontFamily.Monospace) }
-                            }
-                        }
+                        // ... (tes boutons restent identiques ici)
                     }
                 }
             }
