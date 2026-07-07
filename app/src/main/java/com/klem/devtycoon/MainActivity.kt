@@ -10,12 +10,16 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -62,26 +66,28 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(24.dp)
+            .verticalScroll(scrollState),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // En-tête style Console
+        // En-tête Terminal
         Text(
             text = "> DEV_TYCOON.EXE",
             fontFamily = FontFamily.Monospace,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Affichage des lignes de code accumulées
         Text(
             text = "${viewModel.totalLinesOfCode.toInt()} LOC",
             fontFamily = FontFamily.Monospace,
@@ -91,110 +97,170 @@ fun GameScreen(viewModel: GameViewModel, modifier: Modifier = Modifier) {
         )
 
         Text(
-            text = "[SYS]: +${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec",
+            text = "[SYS]: +${viewModel.linesPerClick.toInt()}/clic | +${viewModel.linesPerSecond.toInt()}/sec",
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.secondary
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Bouton de compilation principal (Le Clic)
+        // Zone Interactive Principale
         Button(
             onClick = { viewModel.codeClicked() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp),
-            shape = RoundedCornerShape(4.dp), // Coins presque carrés, plus "retro"
+                .height(75.dp),
+            shape = RoundedCornerShape(4.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.background
             )
         ) {
-            Text(
-                text = "[ EXECUTE_COMPILE ]",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black
-            )
+            Text("[ EXECUTE_COMPILE ]", fontFamily = FontFamily.Monospace, fontSize = 16.sp, fontWeight = FontWeight.Black)
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
+        // CONFIGURATION DU SÉLECTEUR QUANTITATIF
         Text(
-            text = "=== CENTRAL_MARKET ===",
+            text = "=== QUANTITY_SELECTOR ===",
             fontFamily = FontFamily.Monospace,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.align(Alignment.Start),
+            fontSize = 12.sp,
             color = MaterialTheme.colorScheme.secondary,
-            fontWeight = FontWeight.Bold
+            modifier = Modifier.align(Alignment.Start)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Amélioration 1 : Clavier Mécanique
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            shape = RoundedCornerShape(4.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "HARDWARE: Clavier Mécanique [Niv.${viewModel.keyboardLevel}]",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "REQ: ${viewModel.keyboardUpgradeCost.toInt()} LOC",
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+            PurchaseQuantity.values().forEach { qty ->
+                val isSelected = viewModel.selectedQuantity == qty
                 Button(
-                    onClick = { viewModel.buyKeyboardUpgrade() },
-                    enabled = viewModel.totalLinesOfCode >= viewModel.keyboardUpgradeCost,
+                    onClick = { viewModel.selectedQuantity = qty },
+                    modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
                     shape = RoundedCornerShape(2.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary
+                    ),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                 ) {
-                    Text("UPGRADE_HARDWARE (+1/clic)", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.background)
+                    Text(text = qty.name, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // Amélioration 2 : Recruter un dev Junior
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(4.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Text(
+            text = "=== CENTRAL_MARKET ===",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.align(Alignment.Start)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // ITEM 1 : CLAVIER MÉCANIQUE
+        MarketItemCard(
+            title = "HARDWARE: Clavier Mécanique [Niv.${viewModel.keyboardLevel}]",
+            cost = viewModel.getCostForUI("KEYBOARD"),
+            qtyToBuy = viewModel.getQtyForUI("KEYBOARD"),
+            unlocked = true,
+            requirementText = "",
+            canAfford = viewModel.totalLinesOfCode >= viewModel.getCostForUI("KEYBOARD") && viewModel.getQtyForUI("KEYBOARD") > 0,
+            onBuyClick = { viewModel.buyKeyboard() }
+        )
+
+        // ITEM 2 : DÉVELOPPEUR JUNIOR
+        MarketItemCard(
+            title = "HUMAN: Dev Junior [Qté:${viewModel.juniorDevsCount}]",
+            cost = viewModel.getCostForUI("JUNIOR"),
+            qtyToBuy = viewModel.getQtyForUI("JUNIOR"),
+            unlocked = true,
+            requirementText = "",
+            canAfford = viewModel.totalLinesOfCode >= viewModel.getCostForUI("JUNIOR") && viewModel.getQtyForUI("JUNIOR") > 0,
+            onBuyClick = { viewModel.buyJuniorDev() }
+        )
+
+        // ITEM 3 : SERVEUR DÉDIÉ (Condition : Clavier x80)
+        MarketItemCard(
+            title = "INFRA: Serveur Dédié [Niv.${viewModel.serverLevel}]",
+            cost = viewModel.getCostForUI("SERVER"),
+            qtyToBuy = viewModel.getQtyForUI("SERVER"),
+            unlocked = viewModel.keyboardLevel >= 80,
+            requirementText = "REQUIS: Clavier Mecanique x80",
+            canAfford = viewModel.totalLinesOfCode >= viewModel.getCostForUI("SERVER") && viewModel.getQtyForUI("SERVER") > 0,
+            onBuyClick = { viewModel.buyServer() }
+        )
+
+        // ITEM 4 : IA COPILOT (Condition : Dev Junior x10)
+        MarketItemCard(
+            title = "SOFTWARE: IA Copilot [Niv.${viewModel.copilotLevel}]",
+            cost = viewModel.getCostForUI("COPILOT"),
+            qtyToBuy = viewModel.getQtyForUI("COPILOT"),
+            unlocked = viewModel.juniorDevsCount >= 10,
+            requirementText = "REQUIS: Dev Junior x10",
+            canAfford = viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT") && viewModel.getQtyForUI("COPILOT") > 0,
+            onBuyClick = { viewModel.buyCopilot() }
+        )
+
+        // ITEM 5 : FRAMEWORK CUSTOM (Condition : Serveur x5)
+        MarketItemCard(
+            title = "ARCH: Framework Custom [Niv.${viewModel.frameworkLevel}]",
+            cost = viewModel.getCostForUI("FRAMEWORK"),
+            qtyToBuy = viewModel.getQtyForUI("FRAMEWORK"),
+            unlocked = viewModel.serverLevel >= 5,
+            requirementText = "REQUIS: Serveur Dedie x5",
+            canAfford = viewModel.totalLinesOfCode >= viewModel.getCostForUI("FRAMEWORK") && viewModel.getQtyForUI("FRAMEWORK") > 0,
+            onBuyClick = { viewModel.buyFramework() }
+        )
+    }
+}
+
+@Composable
+fun MarketItemCard(
+    title: String,
+    cost: Double,
+    qtyToBuy: Int,
+    unlocked: Boolean,
+    requirementText: String,
+    canAfford: Boolean,
+    onBuyClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        shape = RoundedCornerShape(4.dp),
+        border = BorderStroke(1.dp, if (unlocked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            if (unlocked) {
+                Text(text = title, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Text(
-                    text = "HUMAN_RESOURCE: Dev Junior [Qté:${viewModel.juniorDevsCount}]",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "REQ: ${viewModel.juniorDevCost.toInt()} LOC",
+                    text = "TOTAL_REQ: ${cost.toInt()} LOC (x$qtyToBuy)",
                     fontFamily = FontFamily.Monospace,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { viewModel.hireJuniorDev() },
-                    enabled = viewModel.totalLinesOfCode >= viewModel.juniorDevCost,
+                    onClick = onBuyClick,
+                    enabled = canAfford,
                     shape = RoundedCornerShape(2.dp),
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
-                    Text("HIRE_EMPLOYEE (+2/sec)", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.background)
+                    Text("EXECUTE_BUY", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.background)
                 }
+            } else {
+                Text(text = "[ VERROUILLÉ ]", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                Text(text = requirementText, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f))
             }
         }
     }
