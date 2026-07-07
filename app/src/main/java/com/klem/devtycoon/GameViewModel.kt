@@ -17,18 +17,24 @@ import kotlin.random.Random
 
 enum class PurchaseQuantity { X1, X10, X50, X100, MAX }
 enum class ActiveEventType { NONE, BUG, FREELANCE, LEVEL_UP_REWARD }
+enum class QuestType { CLICK_COUNT, PRODUCE_LOC, BUY_UPGRADE }
 
-// Structure ultra-légère pour le GPU
-data class ClickParticle(
+// Structure pour le système de quêtes aléatoires
+data class Quest(
     val id: UUID = UUID.randomUUID(),
-    val x: Float,
-    val y: Float,
-    val text: String,
-    var progress: Float = 0f // Évolution de 0f à 1f gérée par le Canvas
+    val title: String,
+    val description: String,
+    val type: QuestType,
+    val targetGoal: Double,
+    var currentProgress: Double = 0.0,
+    val rewardLoc: Double,
+    val rewardTalentPoints: Int,
+    var isCompleted: Boolean = false
 )
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
+    // --- ÉTATS DU JOUEUR ---
     var totalLinesOfCode by mutableStateOf(0.0)
         private set
     var keyboardLevel by mutableStateOf(0)
@@ -54,7 +60,18 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     var skillPhp by mutableStateOf(0)
         private set
 
-    // Liste Thread-Safe pour les clics instantanés
+    // --- SYSTÈME DE QUÊTES ---
+    var currentQuest by mutableStateOf<Quest?>(null)
+        private set
+    private var totalClicksInCurrentQuest = 0.0
+    private var locProducedInCurrentQuest = 0.0
+
+    // Configuration des Catégories du Shop (Compteurs d'achats cumulés)
+    var totalHardwareUpgrades by mutableStateOf(0)
+        private set
+    var totalSoftwareUpgrades by mutableStateOf(0)
+        private set
+
     val clickParticles = mutableStateListOf<ClickParticle>()
 
     var activeEvent by mutableStateOf(ActiveEventType.NONE)
@@ -66,9 +83,12 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     var selectedQuantity by mutableStateOf(PurchaseQuantity.X1)
 
+    // --- FORMULES ÉVOLUTIVES ---
     val linesPerClick: Double get() = (1.0 + keyboardLevel) * (1.0 + (skillHtml * 0.10))
     val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier * (1.0 + (skillJs * 0.15))
-    val xpNeededForNextLevel: Int get() = playerLevel * 50
+
+    // FORMULE XP PROGRESSIVE ET NON-LINÉAIRE (Courbe de difficulté accrue)
+    val xpNeededForNextLevel: Int get() = floor(100.0 * (playerLevel.toDouble().pow(1.5))).toInt()
 
     init {
         loadSavedState()
@@ -92,7 +112,15 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 skillHtml = savedState.skillHtml
                 skillJs = savedState.skillJs
                 skillPhp = savedState.skillPhp
-            } catch (e: Exception) {}
+
+                // Recalculer les totaux de catégories à partir des niveaux chargés
+                totalHardwareUpgrades = keyboardLevel + serverLevel
+                totalSoftwareUpgrades = juniorDevsCount + copilotLevel + frameworkLevel
+
+                generateNewQuest()
+            } catch (e: Exception) {
+                generateNewQuest()
+            }
         }
     }
 
@@ -103,8 +131,116 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 if (linesPerSecond > 0) {
                     totalLinesOfCode += linesPerSecond
                     repository.saveTotalLines(totalLinesOfCode)
+
+                    // Progression quête passive LOC
+                    updateQuestProgress(QuestType.PRODUCE_LOC, linesPerSecond)
                 }
             }
+        }
+    }
+
+    // --- LOGIQUE DU SYSTÈME DE QUÊTES ---
+    fun generateNewQuest() {
+        val lvl = playerLevel
+        val types = QuestType.values()
+        val chosenType = types[Random.nextInt(types.size)]
+
+        currentQuest = when (chosenType) {
+            QuestType.CLICK_COUNT -> {
+                val target = floor(15.0 + (lvl * 10.0) * Random.nextDouble(0.8, 1.3))
+                Quest(
+                    title = "Optimisation Compilateur",
+                    description = "Effectuez $target clics manuels pour stabiliser le build.",
+                    type = chosenType,
+                    targetGoal = target,
+                    rewardLoc = floor((lvl * 50.0) * 1.5),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.85) 1 else 0
+                )
+            }
+            QuestType.PRODUCE_LOC -> {
+                val target = floor((lvl * 200.0) * Random.nextDouble(1.0, 2.5))
+                Quest(
+                    title = "Livraison Sprint",
+                    description = "Générez ${target.toInt()} lignes de code au total.",
+                    type = chosenType,
+                    targetGoal = target,
+                    rewardLoc = floor((lvl * 75.0) * 1.3),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.80) 1 else 0
+                )
+            }
+            QuestType.BUY_UPGRADE -> {
+                val target = floor(1.0 + (lvl / 3.0)).coerceAtMost(5.0)
+                Quest(
+                    title = "Mise à niveau Hardware/Software",
+                    description = "Achetez ${target.toInt()} améliorations dans la boutique.",
+                    type = chosenType,
+                    targetGoal = target,
+                    rewardLoc = floor((lvl * 60.0) * 1.4),
+                    rewardTalentPoints = if (Random.nextDouble() > 0.90) 1 else 0
+                )
+            }
+        }
+        totalClicksInCurrentQuest = 0.0
+        locProducedInCurrentQuest = 0.0
+    }
+
+    private fun updateQuestProgress(type: QuestType, amount: Double) {
+        val quest = currentQuest ?: return
+        if (quest.isCompleted || quest.type != type) return
+
+        quest.currentProgress += amount
+        if (quest.currentProgress >= quest.targetGoal) {
+            quest.currentProgress = quest.targetGoal
+            quest.isCompleted = true
+        }
+        // Forcer la mise à jour de l'UI en ré-assignant l'état
+        currentQuest = quest.copy()
+    }
+
+    fun claimQuestRewards() {
+        val quest = currentQuest ?: return
+        if (!quest.isCompleted) return
+
+        totalLinesOfCode += quest.rewardLoc
+        talentPoints += quest.rewardTalentPoints
+
+        viewModelScope.launch {
+            repository.saveTotalLines(totalLinesOfCode)
+            repository.saveTalentPoints(talentPoints)
+        }
+        generateNewQuest()
+    }
+
+    // --- INTERACTIONS CLICS ---
+    fun codeClickedWithCoordinates(x: Float, y: Float) {
+        if (clickParticles.size < 12) {
+            clickParticles.add(ClickParticle(x = x, y = y, text = "+${linesPerClick.toInt()} LOC"))
+        }
+
+        totalLinesOfCode += linesPerClick
+
+        // Progression quêtes
+        updateQuestProgress(QuestType.CLICK_COUNT, 1.0)
+        updateQuestProgress(QuestType.PRODUCE_LOC, linesPerClick)
+
+        // Gestion XP avec formule progressive
+        val xpGained = 1 + skillPhp
+        playerXp += xpGained
+
+        if (playerXp >= xpNeededForNextLevel) {
+            playerXp -= xpNeededForNextLevel
+            playerLevel += 1
+            talentPoints += 1
+            triggerLevelUpReward(playerLevel)
+            viewModelScope.launch {
+                repository.savePlayerLevel(playerLevel)
+                repository.saveTalentPoints(talentPoints)
+            }
+        }
+
+        viewModelScope.launch {
+            repository.saveTotalLines(totalLinesOfCode)
+            repository.savePlayerXp(playerXp)
         }
     }
 
@@ -149,33 +285,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         eventMessage = ""
     }
 
-    fun codeClickedWithCoordinates(x: Float, y: Float) {
-        // Limitation drastique de la taille mémoire pour préserver les performances à 120Hz
-        if (clickParticles.size < 12) {
-            clickParticles.add(ClickParticle(x = x, y = y, text = "+${linesPerClick.toInt()} LOC"))
-        }
-
-        totalLinesOfCode += linesPerClick
-        val xpGained = 1 + skillPhp
-        playerXp += xpGained
-
-        if (playerXp >= xpNeededForNextLevel) {
-            playerXp -= xpNeededForNextLevel
-            playerLevel += 1
-            talentPoints += 1
-            triggerLevelUpReward(playerLevel)
-            viewModelScope.launch {
-                repository.savePlayerLevel(playerLevel)
-                repository.saveTalentPoints(talentPoints)
-            }
-        }
-
-        viewModelScope.launch {
-            repository.saveTotalLines(totalLinesOfCode)
-            repository.savePlayerXp(playerXp)
-        }
-    }
-
     private fun triggerLevelUpReward(newLvl: Int) {
         activeEvent = ActiveEventType.LEVEL_UP_REWARD
         when (Random.nextInt(3)) {
@@ -186,11 +295,13 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
             }
             1 -> {
                 keyboardLevel += 1
+                totalHardwareUpgrades += 1
                 eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Clavier Mécanique +1 !"
                 viewModelScope.launch { repository.saveKeyboardLevel(keyboardLevel) }
             }
             2 -> {
                 juniorDevsCount += 1
+                totalSoftwareUpgrades += 1
                 eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Dev Junior +1 !"
                 viewModelScope.launch { repository.saveJuniorDevsCount(juniorDevsCount) }
             }
@@ -241,11 +352,14 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         return Pair(totalCost, qtyToBuy)
     }
 
+    // --- MÀJ DES COMPTEURS DU SHOP PAR CATÉGORIES ---
     fun buyKeyboard() {
         val (cost, qty) = getUpgradeCostAndQuantity(15.0, 1.15, keyboardLevel)
         if (totalLinesOfCode >= cost && qty > 0) {
             totalLinesOfCode -= cost
             keyboardLevel += qty
+            totalHardwareUpgrades += qty
+            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveKeyboardLevel(keyboardLevel) }
         }
     }
@@ -255,6 +369,8 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && playerLevel >= 2) {
             totalLinesOfCode -= cost
             juniorDevsCount += qty
+            totalSoftwareUpgrades += qty
+            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveJuniorDevsCount(juniorDevsCount) }
         }
     }
@@ -264,6 +380,8 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && keyboardLevel >= 80) {
             totalLinesOfCode -= cost
             serverLevel += qty
+            totalHardwareUpgrades += qty
+            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveServerLevel(serverLevel) }
         }
     }
@@ -273,6 +391,8 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && juniorDevsCount >= 10) {
             totalLinesOfCode -= cost
             copilotLevel += qty
+            totalSoftwareUpgrades += qty
+            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveCopilotLevel(copilotLevel) }
         }
     }
@@ -282,6 +402,8 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && serverLevel >= 5) {
             totalLinesOfCode -= cost
             frameworkLevel += qty
+            totalSoftwareUpgrades += qty
+            updateQuestProgress(QuestType.BUY_UPGRADE, qty.toDouble())
             viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveFrameworkLevel(frameworkLevel) }
         }
     }

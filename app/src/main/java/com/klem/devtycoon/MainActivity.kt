@@ -121,11 +121,8 @@ fun MainNavigationStructure(viewModel: GameViewModel) {
 @Composable
 fun ClickerScreen(viewModel: GameViewModel) {
     val primaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
-
-    // Déclencheur d'état minimaliste pour forcer le rafraîchissement synchrone du Canvas à 120Hz
     val nextFrameSignal = remember { mutableStateOf(0L) }
 
-    // BOUCLE DE RENDU 120HZ SYNC : S'aligne parfaitement sur l'écran du Snapdragon
     LaunchedEffect(Unit) {
         while (true) {
             withFrameMillis { frameTime ->
@@ -134,9 +131,9 @@ fun ClickerScreen(viewModel: GameViewModel) {
                     val iterator = viewModel.clickParticles.iterator()
                     while (iterator.hasNext()) {
                         val particle = iterator.next()
-                        particle.progress += 0.04f // Progression linéaire stable de l'animation
+                        particle.progress += 0.04f
                         if (particle.progress >= 1f) {
-                            iterator.remove() // Nettoyage de la mémoire immédiat
+                            iterator.remove()
                         }
                     }
                 }
@@ -153,22 +150,55 @@ fun ClickerScreen(viewModel: GameViewModel) {
             }
             .padding(24.dp)
     ) {
-        // UI Statique (Ne recalcule rien lors des animations de clics)
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "DEVELOPER LEVEL: ${viewModel.playerLevel}", fontFamily = FontFamily.Monospace, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
-            Text(text = "XP: ${viewModel.playerXp} / ${viewModel.xpNeededForNextLevel}", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f))
-            Spacer(modifier = Modifier.height(48.dp))
-            Text(text = "${viewModel.totalLinesOfCode.toInt()} LOC", fontFamily = FontFamily.Monospace, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            Text(text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
-            Spacer(modifier = Modifier.height(64.dp))
-            Text(text = "[ TAPPEZ POUR CODER ]\n\n<- Swipez pour naviguer ->", fontFamily = FontFamily.Monospace, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+            // Section Supérieure (Stats)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 16.dp)) {
+                Text(text = "DEVELOPER LEVEL: ${viewModel.playerLevel}", fontFamily = FontFamily.Monospace, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                Text(text = "XP: ${viewModel.playerXp} / ${viewModel.xpNeededForNextLevel}", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f))
+            }
+
+            // Section Centrale (LOC)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "${viewModel.totalLinesOfCode.toInt()} LOC", fontFamily = FontFamily.Monospace, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                Text(text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+            }
+
+            // SECTION DU COMPOSANT DE QUÊTE INFÉRIEUR
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                viewModel.currentQuest?.let { quest ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, if (quest.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = ">_ QUÊTE: ${quest.title}", fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text(text = "[${quest.currentProgress.toInt()}/${quest.targetGoal.toInt()}]", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+                            }
+                            Text(text = quest.description, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(vertical = 4.dp))
+
+                            if (quest.isCompleted) {
+                                Button(
+                                    onClick = { viewModel.claimQuestRewards() },
+                                    shape = RoundedCornerShape(2.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text(text = "RÉCUPÉRER: +${quest.rewardLoc.toInt()} LOC ${if(quest.rewardTalentPoints > 0) " +1 PT" else ""}", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.background)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // Pinceau mémorisé pour éviter les allocations d'objets cycliques à chaque frame dans le Canvas
         val textPaint = remember(primaryColorArgb) {
             android.graphics.Paint().apply {
                 color = primaryColorArgb
@@ -178,31 +208,17 @@ fun ClickerScreen(viewModel: GameViewModel) {
             }
         }
 
-        // MOTEUR GRAPHIQUE CANVAS OPTIMISÉ POUR SNAPDRAGON & ÉCRANS ÉLEVÉS
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Lecture du signal pour forcer le redessin sans allouer d'objets Compose
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val _signal = nextFrameSignal.value
-
             viewModel.clickParticles.forEach { particle ->
                 val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
                 textPaint.alpha = alpha
-
-                // Calcul de la montée de la particule
                 val yOffset = particle.progress * 180f
-
-                // Dessin direct en mémoire GPU native
-                drawContext.canvas.nativeCanvas.drawText(
-                    particle.text,
-                    particle.x - 50f,
-                    particle.y - yOffset,
-                    textPaint
-                )
+                drawContext.canvas.nativeCanvas.drawText(particle.text, particle.x - 50f, particle.y - yOffset, textPaint)
             }
         }
 
-        // Fenêtre Pop-up
+        // Fenêtre Pop-up d'Événements
         if (viewModel.activeEvent != ActiveEventType.NONE) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)).pointerInput(Unit) { detectTapGestures { } }.padding(16.dp), contentAlignment = Alignment.Center) {
                 val isBug = viewModel.activeEvent == ActiveEventType.BUG
@@ -234,7 +250,10 @@ fun ClickerScreen(viewModel: GameViewModel) {
 @Composable
 fun ShopScreen(viewModel: GameViewModel) {
     val scrollState = rememberScrollState()
+    val selectedCategory = remember { mutableStateOf("HARDWARE") }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState), horizontalAlignment = Alignment.CenterHorizontally) {
+        // QUANTITY SELECTOR
         Text(text = "=== QUANTITY_SELECTOR ===", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.align(Alignment.Start))
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -243,14 +262,59 @@ fun ShopScreen(viewModel: GameViewModel) {
                 Button(onClick = { viewModel.selectedQuantity = qty }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp), shape = RoundedCornerShape(2.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text(text = qty.name, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // NAVIGATION DES CATÉGORIES DU SHOP
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { selectedCategory.value = "HARDWARE" },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (selectedCategory.value == "HARDWARE") MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Text("MATÉRIEL (${viewModel.totalHardwareUpgrades})", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            }
+            Button(
+                onClick = { selectedCategory.value = "SOFTWARE" },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = if (selectedCategory.value == "SOFTWARE") MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Text("LOGICIEL (${viewModel.totalSoftwareUpgrades})", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            }
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "=== HARDWARE & STAFF ===", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.align(Alignment.Start))
-        Spacer(modifier = Modifier.height(12.dp))
-        MarketItemCard("Clavier Mécanique [Niv. ${viewModel.keyboardLevel}]", viewModel.getCostForUI("KEYBOARD"), viewModel.getQtyForUI("KEYBOARD"), true, "", viewModel.totalLinesOfCode >= viewModel.getCostForUI("KEYBOARD"), { viewModel.buyKeyboard() })
-        MarketItemCard("Dev Junior [Qté: ${viewModel.juniorDevsCount}]", viewModel.getCostForUI("JUNIOR"), viewModel.getQtyForUI("JUNIOR"), viewModel.playerLevel >= 2, "REQUIS: Développeur Niv. 2", viewModel.totalLinesOfCode >= viewModel.getCostForUI("JUNIOR"), { viewModel.buyJuniorDev() })
-        MarketItemCard("Serveur Dédié [Niv. ${viewModel.serverLevel}]", viewModel.getCostForUI("SERVER"), viewModel.getQtyForUI("SERVER"), viewModel.keyboardLevel >= 80, "REQUIS: Clavier Mécanique Niv. 80", viewModel.totalLinesOfCode >= viewModel.getCostForUI("SERVER"), { viewModel.buyServer() })
-        MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getQtyForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
-        MarketItemCard("Framework Custom [Niv. ${viewModel.frameworkLevel}]", viewModel.getCostForUI("FRAMEWORK"), viewModel.getQtyForUI("FRAMEWORK"), viewModel.serverLevel >= 5, "REQUIS: Serveur Dédié Niv. 5", viewModel.totalLinesOfCode >= viewModel.getCostForUI("FRAMEWORK"), { viewModel.buyFramework() })
+
+        // AFFICHAGE DES ÉLÉMENTS DU SHOP SELON LA CATÉGORIE
+        if (selectedCategory.value == "HARDWARE") {
+            Text(text = "--- COMPOSANTS MATÉRIELS ---", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Start))
+            Spacer(modifier = Modifier.height(12.dp))
+            MarketItemCard("Clavier Mécanique [Niv. ${viewModel.keyboardLevel}]", viewModel.getCostForUI("KEYBOARD"), viewModel.getQtyForUI("KEYBOARD"), true, "", viewModel.totalLinesOfCode >= viewModel.getCostForUI("KEYBOARD"), { viewModel.buyKeyboard() })
+            MarketItemCard("Serveur Dédié [Niv. ${viewModel.serverLevel}]", viewModel.getCostForUI("SERVER"), viewModel.getQtyForUI("SERVER"), viewModel.keyboardLevel >= 80, "REQUIS: Clavier Mécanique Niv. 80", viewModel.totalLinesOfCode >= viewModel.getCostForUI("SERVER"), { viewModel.buyServer() })
+        } else {
+            // CONDITION DE DÉBLOCAGE SUR LE TOTAL D'ACHATS (Exemple fixé ici à 15 pour test rapide, adaptable à 180)
+            val isSoftwareUnlocked = viewModel.totalHardwareUpgrades >= 15
+
+            if (isSoftwareUnlocked) {
+                Text(text = "--- COMPOSANTS LOGICIELS ---", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Start))
+                Spacer(modifier = Modifier.height(12.dp))
+                MarketItemCard("Dev Junior [Qté: ${viewModel.juniorDevsCount}]", viewModel.getCostForUI("JUNIOR"), viewModel.getQtyForUI("JUNIOR"), viewModel.playerLevel >= 2, "REQUIS: Développeur Niv. 2", viewModel.totalLinesOfCode >= viewModel.getCostForUI("JUNIOR"), { viewModel.buyJuniorDev() })
+                MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getQtyForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
+                MarketItemCard("Framework Custom [Niv. ${viewModel.frameworkLevel}]", viewModel.getCostForUI("FRAMEWORK"), viewModel.getQtyForUI("FRAMEWORK"), viewModel.serverLevel >= 5, "REQUIS: Serveur Dédié Niv. 5", viewModel.totalLinesOfCode >= viewModel.getCostForUI("FRAMEWORK"), { viewModel.buyFramework() })
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "[ CATÉGORIE VERROUILLÉE ]\n\nAchetez encore ${15 - viewModel.totalHardwareUpgrades} composants dans la section MATÉRIEL pour débloquer l'ingénierie Logicielle.",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
     }
 }
 
