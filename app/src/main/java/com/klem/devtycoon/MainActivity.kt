@@ -35,7 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateNoValueOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -169,6 +168,16 @@ fun ClickerScreen(viewModel: GameViewModel) {
             Text(text = "[ TAPPEZ POUR CODER ]\n\n<- Swipez pour naviguer ->", fontFamily = FontFamily.Monospace, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
         }
 
+        // Pinceau mémorisé pour éviter les allocations d'objets cycliques à chaque frame dans le Canvas
+        val textPaint = remember(primaryColorArgb) {
+            android.graphics.Paint().apply {
+                color = primaryColorArgb
+                textSize = 44f
+                typeface = android.graphics.Typeface.MONOSPACE
+                isAntiAlias = true
+            }
+        }
+
         // MOTEUR GRAPHIQUE CANVAS OPTIMISÉ POUR SNAPDRAGON & ÉCRANS ÉLEVÉS
         Canvas(
             modifier = Modifier.fillMaxSize()
@@ -176,16 +185,9 @@ fun ClickerScreen(viewModel: GameViewModel) {
             // Lecture du signal pour forcer le redessin sans allouer d'objets Compose
             val _signal = nextFrameSignal.value
 
-            val paint = android.graphics.Paint().apply {
-                color = primaryColorArgb
-                textSize = 44f
-                typeface = android.graphics.Typeface.MONOSPACE
-                isAntiAlias = true
-            }
-
             viewModel.clickParticles.forEach { particle ->
                 val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
-                paint.alpha = alpha
+                textPaint.alpha = alpha
 
                 // Calcul de la montée de la particule
                 val yOffset = particle.progress * 180f
@@ -195,7 +197,7 @@ fun ClickerScreen(viewModel: GameViewModel) {
                     particle.text,
                     particle.x - 50f,
                     particle.y - yOffset,
-                    paint
+                    textPaint
                 )
             }
         }
