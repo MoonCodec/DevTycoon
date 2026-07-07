@@ -22,6 +22,9 @@ Ce logiciel est la propriété exclusive de son auteur.
 ---
 
 ## 🚀 Mises à jour
+**Version 1.1.0**
+- Initialisation de la structure pour la persistance des données via Room.
+
 **Version 1.0.2**
 - Implémentation du système de quêtes dynamiques avec fonction "Abandonner / Re-roll".
 - Correction de l'interface des alertes système (Kernel Panic) : ajout d'un bouton de fermeture manuel et gestion du défilement pour les longs messages.
