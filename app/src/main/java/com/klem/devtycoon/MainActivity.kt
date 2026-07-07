@@ -123,7 +123,6 @@ fun MainNavigationStructure(viewModel: GameViewModel) {
 @Composable
 fun ClickerScreen(viewModel: GameViewModel) {
     val primaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
-    // Couleur dorée exclusive pour l'affichage visuel des coups critiques
     val criticalColorArgb = android.graphics.Color.parseColor("#FFD700")
     val nextFrameSignal = remember { mutableStateOf(0L) }
 
@@ -171,7 +170,7 @@ fun ClickerScreen(viewModel: GameViewModel) {
                 Text(text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
             }
 
-            // CORRECTION DE LA BOÎTE DE QUÊTE (Taille adaptative sans superposition)
+            // Section Inférieure (Quête Scalable)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,7 +181,7 @@ fun ClickerScreen(viewModel: GameViewModel) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateContentSize(), // Gère fluidement l'expansion de la boîte
+                            .animateContentSize(),
                         shape = RoundedCornerShape(4.dp),
                         border = BorderStroke(1.dp, if (quest.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -248,7 +247,6 @@ fun ClickerScreen(viewModel: GameViewModel) {
             viewModel.clickParticles.forEach { particle: ClickParticle ->
                 val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
                 textPaint.alpha = alpha
-                // Assigne dynamiquement la couleur selon si le clic est critique ou non
                 textPaint.color = if (particle.isCritical) criticalColorArgb else primaryColorArgb
 
                 val yOffset = particle.progress * 180f
@@ -256,7 +254,6 @@ fun ClickerScreen(viewModel: GameViewModel) {
             }
         }
 
-        // Fenêtre Pop-up d'Événements
         if (viewModel.activeEvent != ActiveEventType.NONE) {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)).pointerInput(Unit) { detectTapGestures { } }.padding(16.dp), contentAlignment = Alignment.Center) {
                 val isBug = viewModel.activeEvent == ActiveEventType.BUG
@@ -335,7 +332,7 @@ fun ShopScreen(viewModel: GameViewModel) {
                 Text(text = "--- COMPOSANTS LOGICIELS ---", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(12.dp))
                 MarketItemCard("Dev Junior [Qté: ${viewModel.juniorDevsCount}]", viewModel.getCostForUI("JUNIOR"), viewModel.getQtyForUI("JUNIOR"), viewModel.playerLevel >= 2, "REQUIS: Développeur Niv. 2", viewModel.totalLinesOfCode >= viewModel.getCostForUI("JUNIOR"), { viewModel.buyJuniorDev() })
-                MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getQtyForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
+                MarketItemCard("IA Copilot [Niv. ${viewModel.copilotLevel}]", viewModel.getCostForUI("COPILOT"), viewModel.getCostForUI("COPILOT"), viewModel.juniorDevsCount >= 10, "REQUIS: Dev Junior Niv. 10", viewModel.totalLinesOfCode >= viewModel.getCostForUI("COPILOT"), { viewModel.buyCopilot() })
                 MarketItemCard("Framework Custom [Niv. ${viewModel.frameworkLevel}]", viewModel.getCostForUI("FRAMEWORK"), viewModel.getQtyForUI("FRAMEWORK"), viewModel.serverLevel >= 5, "REQUIS: Serveur Dédié Niv. 5", viewModel.totalLinesOfCode >= viewModel.getCostForUI("FRAMEWORK"), { viewModel.buyFramework() })
             } else {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
