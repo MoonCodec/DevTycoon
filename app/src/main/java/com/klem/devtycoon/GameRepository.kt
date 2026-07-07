@@ -19,11 +19,19 @@ class GameRepository(private val context: Context) {
     private val keyKeyboardLevel = intPreferencesKey("keyboard_level")
     private val keyJuniorDevs = intPreferencesKey("junior_devs_count")
 
+    // Nouvelles clés pour l'extension du marché
+    private val keyServerLevel = intPreferencesKey("server_level")
+    private val keyCopilotLevel = intPreferencesKey("copilot_level")
+    private val keyFrameworkLevel = intPreferencesKey("framework_level")
+
     val gameStateFlow: Flow<SavedGameState> = context.dataStore.data.map { preferences ->
         SavedGameState(
             totalLinesOfCode = preferences[keyTotalLines] ?: 0.0,
             keyboardLevel = preferences[keyKeyboardLevel] ?: 0,
-            juniorDevsCount = preferences[keyJuniorDevs] ?: 0
+            juniorDevsCount = preferences[keyJuniorDevs] ?: 0,
+            serverLevel = preferences[keyServerLevel] ?: 0,
+            copilotLevel = preferences[keyCopilotLevel] ?: 0,
+            frameworkLevel = preferences[keyFrameworkLevel] ?: 0
         )
     }
 
@@ -44,10 +52,31 @@ class GameRepository(private val context: Context) {
             preferences[keyJuniorDevs] = count
         }
     }
+
+    suspend fun saveServerLevel(level: Int) {
+        context.dataStore.edit { preferences: MutablePreferences ->
+            preferences[keyServerLevel] = level
+        }
+    }
+
+    suspend fun saveCopilotLevel(level: Int) {
+        context.dataStore.edit { preferences: MutablePreferences ->
+            preferences[keyCopilotLevel] = level
+        }
+    }
+
+    suspend fun saveFrameworkLevel(level: Int) {
+        context.dataStore.edit { preferences: MutablePreferences ->
+            preferences[keyFrameworkLevel] = level
+        }
+    }
 }
 
 data class SavedGameState(
     val totalLinesOfCode: Double,
     val keyboardLevel: Int,
-    val juniorDevsCount: Int
+    val juniorDevsCount: Int,
+    val serverLevel: Int,
+    val copilotLevel: Int,
+    val frameworkLevel: Int
 )
