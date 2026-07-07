@@ -4,6 +4,15 @@
 
 ---
 
+## ⚖️ Conditions d'Utilisation
+Ce logiciel est la propriété exclusive de son auteur.
+
+- **Utilisation :** Vous êtes autorisé à télécharger et à jouer à ce jeu gratuitement.
+- **Interdictions :** Il est strictement interdit de modifier, de décompiler, de vendre ou de republier ce projet, en partie ou en totalité, sans l'autorisation écrite explicite de l'auteur.
+- **Droits :** Tous droits réservés © 2026.
+
+---
+
 ## 🛠️ Fonctionnalités
 - **Moteur de clic :** Génération de LOC (lignes de code) via des clics tactiles.
 - **Système de Marché :** Améliorez votre matériel (claviers, serveurs) et vos composants logiciels.
