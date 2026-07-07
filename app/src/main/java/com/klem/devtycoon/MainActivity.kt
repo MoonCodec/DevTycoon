@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -31,19 +31,21 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateNoValueOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,7 +57,6 @@ import com.klem.devtycoon.ui.theme.DevTycoonTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     private val gameViewModel: GameViewModel by lazy {
         ViewModelProvider(this, object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -80,17 +81,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainNavigationStructure(viewModel: GameViewModel) {
-    // PASSAGE À 3 ONGLETS : Clic, Boutique, Arbre de compétences
     val pagerState = rememberPagerState(pageCount = { 3 })
     val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                 NavigationBarItem(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
@@ -112,10 +109,7 @@ fun MainNavigationStructure(viewModel: GameViewModel) {
             }
         }
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.padding(innerPadding)
-        ) { page ->
+        HorizontalPager(state = pagerState, modifier = Modifier.padding(innerPadding)) { page ->
             when (page) {
                 0 -> ClickerScreen(viewModel = viewModel)
                 1 -> ShopScreen(viewModel = viewModel)
@@ -127,7 +121,29 @@ fun MainNavigationStructure(viewModel: GameViewModel) {
 
 @Composable
 fun ClickerScreen(viewModel: GameViewModel) {
-    val density = LocalDensity.current
+    val primaryColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+
+    // Déclencheur d'état minimaliste pour forcer le rafraîchissement synchrone du Canvas à 120Hz
+    val nextFrameSignal = remember { mutableStateOf(0L) }
+
+    // BOUCLE DE RENDU 120HZ SYNC : S'aligne parfaitement sur l'écran du Snapdragon
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameMillis { frameTime ->
+                nextFrameSignal.value = frameTime
+                if (viewModel.clickParticles.isNotEmpty()) {
+                    val iterator = viewModel.clickParticles.iterator()
+                    while (iterator.hasNext()) {
+                        val particle = iterator.next()
+                        particle.progress += 0.04f // Progression linéaire stable de l'animation
+                        if (particle.progress >= 1f) {
+                            iterator.remove() // Nettoyage de la mémoire immédiat
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -138,111 +154,67 @@ fun ClickerScreen(viewModel: GameViewModel) {
             }
             .padding(24.dp)
     ) {
+        // UI Statique (Ne recalcule rien lors des animations de clics)
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = "DEVELOPER LEVEL: ${viewModel.playerLevel}",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                text = "XP: ${viewModel.playerXp} / ${viewModel.xpNeededForNextLevel}",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f)
-            )
-
+            Text(text = "DEVELOPER LEVEL: ${viewModel.playerLevel}", fontFamily = FontFamily.Monospace, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+            Text(text = "XP: ${viewModel.playerXp} / ${viewModel.xpNeededForNextLevel}", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.7f))
             Spacer(modifier = Modifier.height(48.dp))
-
-            Text(
-                text = "${viewModel.totalLinesOfCode.toInt()} LOC",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 42.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            )
-
-            Text(
-                text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.secondary
-            )
-
+            Text(text = "${viewModel.totalLinesOfCode.toInt()} LOC", fontFamily = FontFamily.Monospace, fontSize = 42.sp, fontWeight = FontWeight.ExtraBold, color = if (viewModel.activeEvent == ActiveEventType.BUG) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            Text(text = "+${viewModel.linesPerClick.toInt()} loc/clic | +${viewModel.linesPerSecond.toInt()} loc/sec", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
             Spacer(modifier = Modifier.height(64.dp))
-
-            Text(
-                text = "[ TAPPEZ POUR CODER ]\n\n<- Swipez pour naviguer ->",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-            )
+            Text(text = "[ TAPPEZ POUR CODER ]\n\n<- Swipez pour naviguer ->", fontFamily = FontFamily.Monospace, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
         }
 
-        viewModel.clickParticles.forEach { particle ->
-            key(particle.id) {
-                val xDp = with(density) { particle.x.toDp() }
-                val yDp = with(density) { particle.y.toDp() }
-                val elapsedTime = System.currentTimeMillis() - particle.creationTime
-                val animationProgress = (elapsedTime / 600f).coerceIn(0f, 1f)
-                val yOffset = - (animationProgress * 100f)
-                val alpha = 1f - animationProgress
+        // MOTEUR GRAPHIQUE CANVAS OPTIMISÉ POUR SNAPDRAGON & ÉCRANS ÉLEVÉS
+        Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Lecture du signal pour forcer le redessin sans allouer d'objets Compose
+            val _signal = nextFrameSignal.value
 
-                Text(
-                    text = particle.text,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .offset(x = xDp - 20.dp, y = yDp + yOffset.dp)
-                        .graphicsLayer(alpha = alpha)
+            val paint = android.graphics.Paint().apply {
+                color = primaryColorArgb
+                textSize = 44f
+                typeface = android.graphics.Typeface.MONOSPACE
+                isAntiAlias = true
+            }
+
+            viewModel.clickParticles.forEach { particle ->
+                val alpha = ((1f - particle.progress) * 255).toInt().coerceIn(0, 255)
+                paint.alpha = alpha
+
+                // Calcul de la montée de la particule
+                val yOffset = particle.progress * 180f
+
+                // Dessin direct en mémoire GPU native
+                drawContext.canvas.nativeCanvas.drawText(
+                    particle.text,
+                    particle.x - 50f,
+                    particle.y - yOffset,
+                    paint
                 )
             }
         }
 
+        // Fenêtre Pop-up
         if (viewModel.activeEvent != ActiveEventType.NONE) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)).pointerInput(Unit) { detectTapGestures { } }.padding(16.dp), contentAlignment = Alignment.Center) {
                 val isBug = viewModel.activeEvent == ActiveEventType.BUG
                 val isReward = viewModel.activeEvent == ActiveEventType.LEVEL_UP_REWARD
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(0.dp),
-                    border = BorderStroke(width = 2.dp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(0.dp), border = BorderStroke(width = 2.dp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = if (isBug) "!! KERNEL_PANIC !!" else if (isReward) "== LEVEL_UP_REWARD ==" else "!! INCOMING_CONTRACT !!",
-                            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 18.sp,
-                            color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                        )
+                        Text(text = if (isBug) "!! KERNEL_PANIC !!" else if (isReward) "== LEVEL_UP_REWARD ==" else "!! INCOMING_CONTRACT !!", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Black, fontSize = 18.sp, color = if (isBug) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(text = viewModel.eventMessage, fontFamily = FontFamily.Monospace, fontSize = 13.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(24.dp))
-
                         if (isBug) {
-                            Button(onClick = { viewModel.resolveBug() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                                Text("[ DEBUGGER_LE_SYSTEME ]", fontFamily = FontFamily.Monospace, color = Color.White)
-                            }
+                            Button(onClick = { viewModel.resolveBug() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("[ DEBUGGER_LE_SYSTEME ]", fontFamily = FontFamily.Monospace, color = Color.White) }
                         } else if (isReward) {
-                            Button(onClick = { viewModel.dismissEvent() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) {
-                                Text("[ RECLAIM_REWARD ]", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background)
-                            }
+                            Button(onClick = { viewModel.dismissEvent() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) { Text("[ RECLAIM_REWARD ]", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.background) }
                         } else {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Button(onClick = { viewModel.dismissEvent() }, shape = RoundedCornerShape(2.dp), modifier = Modifier.weight(1f)) { Text("IGNORER", fontFamily = FontFamily.Monospace) }
@@ -260,22 +232,13 @@ fun ClickerScreen(viewModel: GameViewModel) {
 @Composable
 fun ShopScreen(viewModel: GameViewModel) {
     val scrollState = rememberScrollState()
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = "=== QUANTITY_SELECTOR ===", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.align(Alignment.Start))
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             PurchaseQuantity.values().forEach { qty ->
                 val isSelected = viewModel.selectedQuantity == qty
-                Button(
-                    onClick = { viewModel.selectedQuantity = qty },
-                    modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
-                    shape = RoundedCornerShape(2.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) { Text(text = qty.name, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                Button(onClick = { viewModel.selectedQuantity = qty }, modifier = Modifier.weight(1f).padding(horizontal = 2.dp), shape = RoundedCornerShape(2.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text(text = qty.name, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -289,82 +252,33 @@ fun ShopScreen(viewModel: GameViewModel) {
     }
 }
 
-// NOUVEAU : INTERFACE DU 3EME ONGLET (ARBRE DES COMPÉTENCES/LANGAGES)
 @Composable
 fun TechTreeScreen(viewModel: GameViewModel) {
     val scrollState = rememberScrollState()
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp).verticalScroll(scrollState), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = "=== TECH_SKILL_TREE ===", fontFamily = FontFamily.Monospace, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         Text(text = "Points de Talent disponibles : ${viewModel.talentPoints}", fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-
         Spacer(modifier = Modifier.height(24.dp))
-
-        // Niveau 1 : HTML
-        SkillTreeNodeCard(
-            name = "HTML / CSS [Niv. ${viewModel.skillHtml}/5]",
-            description = "Bases du Web. Multiplie la force de vos clics manuels (+10% par niveau).",
-            unlocked = true,
-            reqText = "Disponible immédiatement",
-            canAfford = viewModel.talentPoints > 0 && viewModel.skillHtml < 5,
-            onUpgrade = { viewModel.upgradeLanguage("HTML") }
-        )
-
+        SkillTreeNodeCard("HTML / CSS [Niv. ${viewModel.skillHtml}/5]", "Bases du Web. Multiplie la force de vos clics manuels (+10% par niveau).", true, "Disponible immédiatement", viewModel.talentPoints > 0 && viewModel.skillHtml < 5, { viewModel.upgradeLanguage("HTML") })
         Text(text = "│\n▼", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-
-        // Niveau 2 : JavaScript (Condition : HTML Niv. 3)
         val jsUnlocked = viewModel.skillHtml >= 3
-        SkillTreeNodeCard(
-            name = "JavaScript [Niv. ${viewModel.skillJs}/5]",
-            description = "Ajoute du dynamisme. Augmente la production de tout votre matériel passif (+15% par niveau).",
-            unlocked = jsUnlocked,
-            reqText = "BLOQUÉ : Requiert HTML / CSS Niv. 3",
-            canAfford = viewModel.talentPoints > 0 && jsUnlocked && viewModel.skillJs < 5,
-            onUpgrade = { viewModel.upgradeLanguage("JS") }
-        )
-
+        SkillTreeNodeCard("JavaScript [Niv. ${viewModel.skillJs}/5]", "Ajoute du dynamisme. Augmente la production de tout votre matériel passif (+15% par niveau).", jsUnlocked, "BLOQUÉ : Requiert HTML / CSS Niv. 3", viewModel.talentPoints > 0 && jsUnlocked && viewModel.skillJs < 5, { viewModel.upgradeLanguage("JS") })
         Text(text = "│\n▼", fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.secondary, textAlign = TextAlign.Center)
-
-        // Niveau 3 : PHP (Condition : JS Niv. 4)
         val phpUnlocked = viewModel.skillJs >= 4
-        SkillTreeNodeCard(
-            name = "PHP Server [Niv. ${viewModel.skillPhp}/5]",
-            description = "Moteur Backend. Augmente l'XP reçue à chaque clic manuel (+1 XP par niveau).",
-            unlocked = phpUnlocked,
-            reqText = "BLOQUÉ : Requiert JavaScript Niv. 4",
-            canAfford = viewModel.talentPoints > 0 && phpUnlocked && viewModel.skillPhp < 5,
-            onUpgrade = { viewModel.upgradeLanguage("PHP") }
-        )
+        SkillTreeNodeCard("PHP Server [Niv. ${viewModel.skillPhp}/5]", "Moteur Backend. Augmente l'XP reçue à chaque clic manuel (+1 XP par niveau).", phpUnlocked, "BLOQUÉ : Requiert JavaScript Niv. 4", viewModel.talentPoints > 0 && phpUnlocked && viewModel.skillPhp < 5, { viewModel.upgradeLanguage("PHP") })
     }
 }
 
 @Composable
 fun SkillTreeNodeCard(name: String, description: String, unlocked: Boolean, reqText: String, canAfford: Boolean, onUpgrade: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(4.dp),
-        border = BorderStroke(1.dp, if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(4.dp), border = BorderStroke(1.dp, if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = name, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.primary else Color.Gray)
             Text(text = description, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(vertical = 4.dp))
-
             if (!unlocked) {
                 Text(text = reqText, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
             } else {
-                Button(
-                    onClick = onUpgrade,
-                    enabled = canAfford,
-                    shape = RoundedCornerShape(2.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("INVESTIR 1 PT", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.background)
-                }
+                Button(onClick = onUpgrade, enabled = canAfford, shape = RoundedCornerShape(2.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) { Text("INVESTIR 1 PT", fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = MaterialTheme.colorScheme.background) }
             }
         }
     }

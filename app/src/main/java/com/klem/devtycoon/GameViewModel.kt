@@ -18,12 +18,13 @@ import kotlin.random.Random
 enum class PurchaseQuantity { X1, X10, X50, X100, MAX }
 enum class ActiveEventType { NONE, BUG, FREELANCE, LEVEL_UP_REWARD }
 
+// Structure ultra-légère pour le GPU
 data class ClickParticle(
     val id: UUID = UUID.randomUUID(),
     val x: Float,
     val y: Float,
     val text: String,
-    val creationTime: Long = System.currentTimeMillis()
+    var progress: Float = 0f // Évolution de 0f à 1f gérée par le Canvas
 )
 
 class GameViewModel(private val repository: GameRepository) : ViewModel() {
@@ -44,8 +45,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         private set
     var playerXp by mutableStateOf(0)
         private set
-
-    // NOUVEAU : États de l'arbre de compétences
     var talentPoints by mutableStateOf(0)
         private set
     var skillHtml by mutableStateOf(0)
@@ -55,7 +54,9 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     var skillPhp by mutableStateOf(0)
         private set
 
+    // Liste Thread-Safe pour les clics instantanés
     val clickParticles = mutableStateListOf<ClickParticle>()
+
     var activeEvent by mutableStateOf(ActiveEventType.NONE)
         private set
     var eventMultiplier by mutableStateOf(1.0)
@@ -65,7 +66,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     var selectedQuantity by mutableStateOf(PurchaseQuantity.X1)
 
-    // Application des bonus de l'arbre de compétences dans les calculs globaux
     val linesPerClick: Double get() = (1.0 + keyboardLevel) * (1.0 + (skillHtml * 0.10))
     val linesPerSecond: Double get() = ((juniorDevsCount * 2.0) + (serverLevel * 15.0) + (copilotLevel * 80.0) + (frameworkLevel * 500.0)) * eventMultiplier * (1.0 + (skillJs * 0.15))
     val xpNeededForNextLevel: Int get() = playerLevel * 50
@@ -104,8 +104,6 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                     totalLinesOfCode += linesPerSecond
                     repository.saveTotalLines(totalLinesOfCode)
                 }
-                val now = System.currentTimeMillis()
-                clickParticles.removeAll { now - it.creationTime > 600 }
             }
         }
     }
@@ -152,21 +150,19 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
     }
 
     fun codeClickedWithCoordinates(x: Float, y: Float) {
-        if (clickParticles.size < 15) {
-            val text = "+${linesPerClick.toInt()} LOC"
-            clickParticles.add(ClickParticle(x = x, y = y, text = text))
+        // Limitation drastique de la taille mémoire pour préserver les performances à 120Hz
+        if (clickParticles.size < 12) {
+            clickParticles.add(ClickParticle(x = x, y = y, text = "+${linesPerClick.toInt()} LOC"))
         }
 
         totalLinesOfCode += linesPerClick
-
-        // Bonus de gain d'XP grâce au langage PHP (Arbre)
         val xpGained = 1 + skillPhp
         playerXp += xpGained
 
         if (playerXp >= xpNeededForNextLevel) {
             playerXp -= xpNeededForNextLevel
             playerLevel += 1
-            talentPoints += 1 // RECOMPENSE : 1 point d'arbre de compétence !
+            talentPoints += 1
             triggerLevelUpReward(playerLevel)
             viewModelScope.launch {
                 repository.savePlayerLevel(playerLevel)
@@ -182,61 +178,47 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
 
     private fun triggerLevelUpReward(newLvl: Int) {
         activeEvent = ActiveEventType.LEVEL_UP_REWARD
-
         when (Random.nextInt(3)) {
             0 -> {
                 val bonusLoc = newLvl * 250.0
                 totalLinesOfCode += bonusLoc
-                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : +${bonusLoc.toInt()} LOC !"
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : +${bonusLoc.toInt()} LOC !"
             }
             1 -> {
                 keyboardLevel += 1
-                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : Clavier Mécanique +1 !"
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Clavier Mécanique +1 !"
                 viewModelScope.launch { repository.saveKeyboardLevel(keyboardLevel) }
             }
             2 -> {
                 juniorDevsCount += 1
-                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent obtenu. CADEAU BONUS : Dev Junior +1 !"
+                eventMessage = "[LEVEL_UP]: Niveau $newLvl ! +1 Point de Talent. BONUS : Dev Junior +1 !"
                 viewModelScope.launch { repository.saveJuniorDevsCount(juniorDevsCount) }
             }
         }
     }
 
-    // LOGIQUE DE L'ARBRE DE COMPÉTENCES (VÉRIFICATION DES PRÉREQUIS DE BRANCHES)
     fun upgradeLanguage(lang: String) {
         if (talentPoints <= 0) return
-
         when (lang) {
             "HTML" -> {
-                if (skillHtml < 5) { // Max niveau 5
+                if (skillHtml < 5) {
                     skillHtml += 1
                     talentPoints -= 1
-                    viewModelScope.launch {
-                        repository.saveSkillHtml(skillHtml)
-                        repository.saveTalentPoints(talentPoints)
-                    }
+                    viewModelScope.launch { repository.saveSkillHtml(skillHtml); repository.saveTalentPoints(talentPoints) }
                 }
             }
             "JS" -> {
-                // CONDITION DE BRANCHE : Nécessite HTML Niv. 3
                 if (skillHtml >= 3 && skillJs < 5) {
                     skillJs += 1
                     talentPoints -= 1
-                    viewModelScope.launch {
-                        repository.saveSkillJs(skillJs)
-                        repository.saveTalentPoints(talentPoints)
-                    }
+                    viewModelScope.launch { repository.saveSkillJs(skillJs); repository.saveTalentPoints(talentPoints) }
                 }
             }
             "PHP" -> {
-                // CONDITION DE BRANCHE : Nécessite JS Niv. 4
                 if (skillJs >= 4 && skillPhp < 5) {
                     skillPhp += 1
                     talentPoints -= 1
-                    viewModelScope.launch {
-                        repository.saveSkillPhp(skillPhp)
-                        repository.saveTalentPoints(talentPoints)
-                    }
+                    viewModelScope.launch { repository.saveSkillPhp(skillPhp); repository.saveTalentPoints(talentPoints) }
                 }
             }
         }
@@ -254,11 +236,8 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
                 if (maxQty < 1) 1 else maxQty
             }
         }
-
         var totalCost = 0.0
-        for (i in 0 until qtyToBuy) {
-            totalCost += baseCost * multiplier.pow(currentLevel + i)
-        }
+        for (i in 0 until qtyToBuy) { totalCost += baseCost * multiplier.pow(currentLevel + i) }
         return Pair(totalCost, qtyToBuy)
     }
 
@@ -267,10 +246,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0) {
             totalLinesOfCode -= cost
             keyboardLevel += qty
-            viewModelScope.launch {
-                repository.saveTotalLines(totalLinesOfCode)
-                repository.saveKeyboardLevel(keyboardLevel)
-            }
+            viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveKeyboardLevel(keyboardLevel) }
         }
     }
 
@@ -279,10 +255,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && playerLevel >= 2) {
             totalLinesOfCode -= cost
             juniorDevsCount += qty
-            viewModelScope.launch {
-                repository.saveTotalLines(totalLinesOfCode)
-                repository.saveJuniorDevsCount(juniorDevsCount)
-            }
+            viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveJuniorDevsCount(juniorDevsCount) }
         }
     }
 
@@ -291,10 +264,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && keyboardLevel >= 80) {
             totalLinesOfCode -= cost
             serverLevel += qty
-            viewModelScope.launch {
-                repository.saveTotalLines(totalLinesOfCode)
-                repository.saveServerLevel(serverLevel)
-            }
+            viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveServerLevel(serverLevel) }
         }
     }
 
@@ -303,10 +273,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && juniorDevsCount >= 10) {
             totalLinesOfCode -= cost
             copilotLevel += qty
-            viewModelScope.launch {
-                repository.saveTotalLines(totalLinesOfCode)
-                repository.saveCopilotLevel(copilotLevel)
-            }
+            viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveCopilotLevel(copilotLevel) }
         }
     }
 
@@ -315,10 +282,7 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         if (totalLinesOfCode >= cost && qty > 0 && serverLevel >= 5) {
             totalLinesOfCode -= cost
             frameworkLevel += qty
-            viewModelScope.launch {
-                repository.saveTotalLines(totalLinesOfCode)
-                repository.saveFrameworkLevel(frameworkLevel)
-            }
+            viewModelScope.launch { repository.saveTotalLines(totalLinesOfCode); repository.saveFrameworkLevel(frameworkLevel) }
         }
     }
 
