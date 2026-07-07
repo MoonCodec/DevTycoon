@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.klem.devtycoon"
-    compileSdk = 36 // Fix de l'erreur AAR : Requis par tes libs d'origine
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.klem.devtycoon"
         minSdk = 24
-        targetSdk = 36 // Aligné sur le compileSdk
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -50,6 +50,9 @@ dependencies {
     // Moteur de calcul asynchrone (Coroutines Kotlin)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
+    // Système de persistance moderne
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
