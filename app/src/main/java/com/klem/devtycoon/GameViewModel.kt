@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 
@@ -37,12 +38,16 @@ class GameViewModel(private val repository: GameRepository) : ViewModel() {
         startGameLoop()
     }
 
+    // FIX: On récupère le snapshot de la sauvegarde UNE SEULE FOIS au démarrage
     private fun loadSavedState() {
         viewModelScope.launch {
-            repository.gameStateFlow.collect { savedState ->
+            try {
+                val savedState = repository.gameStateFlow.first()
                 totalLinesOfCode = savedState.totalLinesOfCode
                 keyboardLevel = savedState.keyboardLevel
                 juniorDevsCount = savedState.juniorDevsCount
+            } catch (e: Exception) {
+                // En cas d'erreur de lecture, on conserve les valeurs par défaut (0)
             }
         }
     }
